@@ -88,6 +88,26 @@ function createDatabase() {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           );
 
+          CREATE TABLE IF NOT EXISTS full_reports (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            reading_id BIGINT REFERENCES readings(id) ON DELETE SET NULL,
+            status TEXT NOT NULL DEFAULT 'draft',
+            price_cents INTEGER NOT NULL DEFAULT 1900,
+            currency TEXT NOT NULL DEFAULT 'USD',
+            payment_provider TEXT,
+            payment_reference TEXT,
+            chart_json TEXT,
+            prompt_json TEXT,
+            report_json TEXT,
+            report_html TEXT,
+            pdf_path TEXT,
+            error_message TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            generated_at TIMESTAMPTZ
+          );
+
           CREATE TABLE IF NOT EXISTS pending_registrations (
             email TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -164,6 +184,28 @@ function createDatabase() {
           reading_json TEXT NOT NULL,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS full_reports (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          reading_id INTEGER,
+          status TEXT NOT NULL DEFAULT 'draft',
+          price_cents INTEGER NOT NULL DEFAULT 1900,
+          currency TEXT NOT NULL DEFAULT 'USD',
+          payment_provider TEXT,
+          payment_reference TEXT,
+          chart_json TEXT,
+          prompt_json TEXT,
+          report_json TEXT,
+          report_html TEXT,
+          pdf_path TEXT,
+          error_message TEXT,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          generated_at TEXT,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (reading_id) REFERENCES readings(id) ON DELETE SET NULL
         );
 
         CREATE TABLE IF NOT EXISTS pending_registrations (

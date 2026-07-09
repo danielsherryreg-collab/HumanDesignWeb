@@ -175,7 +175,7 @@ function renderReadingDetail(reading) {
         <p>
           Your mini reading is the first layer. The full report will expand this into
           shadow patterns, relationship dynamics, career energy, Human Design gates,
-          and practical reflection prompts.
+          and practical reflection prompts. Launch price: $19.
         </p>
       </div>
       <a class="button button--primary" href="index.html#full-report">Get Full Birth Chart Report</a>
