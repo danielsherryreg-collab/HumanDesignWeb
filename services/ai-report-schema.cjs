@@ -67,6 +67,249 @@ const AI_REPORT_JSON_SCHEMA = {
   },
 };
 
+const OPENAI_REPORT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "meta",
+    "identity",
+    "viralScript",
+    "previewReport",
+    "fullReport",
+    "humanDesign",
+    "imageGeneration",
+    "uiCards",
+    "email",
+    "upsell",
+  ],
+  properties: {
+    meta: {
+      type: "object",
+      additionalProperties: false,
+      required: ["productName", "reportType", "language", "tone", "confidenceLevel", "missingDataWarnings", "generatedAt", "schemaVersion"],
+      properties: {
+        productName: { type: "string" },
+        reportType: { type: "string" },
+        language: { type: "string" },
+        tone: { type: "string" },
+        confidenceLevel: { type: "string", enum: ["high", "medium", "low"] },
+        missingDataWarnings: { type: "array", items: { type: "string" } },
+        generatedAt: { type: "string" },
+        schemaVersion: { type: "string" },
+      },
+    },
+    identity: {
+      type: "object",
+      additionalProperties: false,
+      required: ["displayName", "title", "subtitle", "archetypeName", "oneSentenceSummary"],
+      properties: {
+        displayName: { type: "string" },
+        title: { type: "string" },
+        subtitle: { type: "string" },
+        archetypeName: { type: "string" },
+        oneSentenceSummary: { type: "string" },
+      },
+    },
+    viralScript: {
+      type: "object",
+      additionalProperties: false,
+      required: ["hook", "voiceover", "caption", "onScreenText", "hashtags"],
+      properties: {
+        hook: { type: "string" },
+        voiceover: { type: "string" },
+        caption: { type: "string" },
+        onScreenText: { type: "array", items: { type: "string" } },
+        hashtags: { type: "array", items: { type: "string" } },
+      },
+    },
+    previewReport: {
+      type: "object",
+      additionalProperties: false,
+      required: ["headline", "sections"],
+      properties: {
+        headline: { type: "string" },
+        sections: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["id", "title", "summary", "body", "locked"],
+            properties: {
+              id: { type: "string" },
+              title: { type: "string" },
+              summary: { type: "string" },
+              body: { type: "string" },
+              locked: { type: "boolean" },
+            },
+          },
+        },
+      },
+    },
+    fullReport: {
+      type: "object",
+      additionalProperties: false,
+      required: ["sections"],
+      properties: {
+        sections: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["id", "title", "body"],
+            properties: {
+              id: { type: "string" },
+              title: { type: "string" },
+              body: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    humanDesign: {
+      type: "object",
+      additionalProperties: false,
+      required: ["summary", "raveChartVisualData", "raveChartStyle"],
+      properties: {
+        summary: {
+          type: "object",
+          additionalProperties: false,
+          required: ["type", "strategy", "authority", "profile", "definition", "interpretation"],
+          properties: {
+            type: { type: "string" },
+            strategy: { type: "string" },
+            authority: { type: "string" },
+            profile: { type: "string" },
+            definition: { type: "string" },
+            interpretation: { type: "string" },
+          },
+        },
+        raveChartVisualData: {
+          type: "object",
+          additionalProperties: false,
+          required: ["centers", "channels", "gates"],
+          properties: {
+            centers: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["id", "label", "defined", "color", "glow", "position"],
+                properties: {
+                  id: { type: "string" },
+                  label: { type: "string" },
+                  defined: { type: "boolean" },
+                  color: { type: "string" },
+                  glow: { type: "boolean" },
+                  position: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["x", "y"],
+                    properties: { x: { type: "number" }, y: { type: "number" } },
+                  },
+                },
+              },
+            },
+            channels: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["id", "fromCenter", "toCenter", "active", "color", "glow"],
+                properties: {
+                  id: { type: "string" },
+                  fromCenter: { type: "string" },
+                  toCenter: { type: "string" },
+                  active: { type: "boolean" },
+                  color: { type: "string" },
+                  glow: { type: "boolean" },
+                },
+              },
+            },
+            gates: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["id", "center", "active", "label"],
+                properties: {
+                  id: { type: "string" },
+                  center: { type: "string" },
+                  active: { type: "boolean" },
+                  label: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        raveChartStyle: {
+          type: "object",
+          additionalProperties: false,
+          required: ["background", "lineStyle", "definedCenterStyle", "undefinedCenterStyle", "accentColors", "typography", "mood"],
+          properties: {
+            background: { type: "string" },
+            lineStyle: { type: "string" },
+            definedCenterStyle: { type: "string" },
+            undefinedCenterStyle: { type: "string" },
+            accentColors: { type: "array", items: { type: "string" } },
+            typography: { type: "string" },
+            mood: { type: "string" },
+          },
+        },
+      },
+    },
+    imageGeneration: {
+      type: "object",
+      additionalProperties: false,
+      required: ["mainPrompt", "negativePrompt", "aspectRatio", "styleKeywords"],
+      properties: {
+        mainPrompt: { type: "string" },
+        negativePrompt: { type: "string" },
+        aspectRatio: { type: "string" },
+        styleKeywords: { type: "array", items: { type: "string" } },
+      },
+    },
+    uiCards: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "title", "eyebrow", "body", "icon", "locked"],
+        properties: {
+          id: { type: "string" },
+          title: { type: "string" },
+          eyebrow: { type: "string" },
+          body: { type: "string" },
+          icon: { type: "string" },
+          locked: { type: "boolean" },
+        },
+      },
+    },
+    email: {
+      type: "object",
+      additionalProperties: false,
+      required: ["subject", "previewText", "headline", "body", "ctaText"],
+      properties: {
+        subject: { type: "string" },
+        previewText: { type: "string" },
+        headline: { type: "string" },
+        body: { type: "string" },
+        ctaText: { type: "string" },
+      },
+    },
+    upsell: {
+      type: "object",
+      additionalProperties: false,
+      required: ["headline", "subheadline", "includedItems", "ctaText"],
+      properties: {
+        headline: { type: "string" },
+        subheadline: { type: "string" },
+        includedItems: { type: "array", items: { type: "string" } },
+        ctaText: { type: "string" },
+      },
+    },
+  },
+};
+
 const CENTER_LAYOUT = [
   { id: "head", label: "Head", x: 50, y: 6 },
   { id: "ajna", label: "Ajna", x: 50, y: 18 },
@@ -317,6 +560,7 @@ function createMockAiReport({ user, reading }) {
 module.exports = {
   AI_REPORT_JSON_SCHEMA,
   AI_REPORT_SCHEMA_VERSION,
+  OPENAI_REPORT_JSON_SCHEMA,
   REPORT_CURRENCY,
   REPORT_PRICE_CENTS,
   buildReportInput,

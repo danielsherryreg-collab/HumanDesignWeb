@@ -4,7 +4,8 @@ const path = require("path");
 const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
 const { calculateReading } = require("./services/chart-engine.cjs");
-const { REPORT_CURRENCY, REPORT_PRICE_CENTS, buildReportInput, createMockAiReport } = require("./services/ai-report-schema.cjs");
+const { REPORT_CURRENCY, REPORT_PRICE_CENTS, buildReportInput } = require("./services/ai-report-schema.cjs");
+const { generateStructuredReport } = require("./services/openai-report-generator.cjs");
 
 const root = path.resolve(__dirname);
 const dataDir = path.join(root, "data");
@@ -153,8 +154,8 @@ function createDatabase() {
         const result = await pool.query(
           `
             INSERT INTO full_reports
-              (user_id, reading_id, status, price_cents, currency, chart_json, prompt_json, report_json, report_html, updated_at, generated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+              (user_id, reading_id, status, price_cents, currency, payment_provider, chart_json, prompt_json, report_json, report_html, error_message, updated_at, generated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
             RETURNING id
           `,
           [
@@ -163,10 +164,12 @@ function createDatabase() {
             params.status,
             params.priceCents,
             params.currency,
+            params.paymentProvider,
             params.chartJson,
             params.promptJson,
             params.reportJson,
             params.reportHtml,
+            params.errorMessage,
           ],
         );
         return result.rows[0].id;
@@ -274,8 +277,8 @@ function createDatabase() {
         .prepare(
           `
             INSERT INTO full_reports
-              (user_id, reading_id, status, price_cents, currency, chart_json, prompt_json, report_json, report_html, updated_at, generated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+              (user_id, reading_id, status, price_cents, currency, payment_provider, chart_json, prompt_json, report_json, report_html, error_message, updated_at, generated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
           `,
         )
         .run(
@@ -284,10 +287,12 @@ function createDatabase() {
           params.status,
           params.priceCents,
           params.currency,
+          params.paymentProvider,
           params.chartJson,
           params.promptJson,
           params.reportJson,
           params.reportHtml,
+          params.errorMessage,
           new Date().toISOString(),
         );
       return result.lastInsertRowid;
@@ -762,6 +767,8 @@ function publicFullReport(row) {
     status: row.status,
     priceCents: row.price_cents,
     currency: row.currency,
+    generationProvider: row.payment_provider,
+    errorMessage: row.error_message,
     report: row.report_json ? JSON.parse(row.report_json) : null,
     createdAt: row.created_at,
     generatedAt: row.generated_at,
@@ -782,9 +789,8 @@ async function handleCreateFullReport(request, response) {
 
   const reading = JSON.parse(readingRow.reading_json);
   const promptInput = buildReportInput({ user, reading });
-
-  // Future integration point: send promptInput to OpenAI structured JSON generation and validate against schema.
-  const report = createMockAiReport({ user, reading });
+  const generation = await generateStructuredReport({ user, reading, promptInput });
+  const report = generation.report;
   const reportHtml = "";
 
   const reportId = await db.insertFullReport({
@@ -793,10 +799,12 @@ async function handleCreateFullReport(request, response) {
     status: "ready",
     priceCents: REPORT_PRICE_CENTS,
     currency: REPORT_CURRENCY,
+    paymentProvider: generation.provider,
     chartJson: JSON.stringify(reading.chart || {}),
     promptJson: JSON.stringify(promptInput),
     reportJson: JSON.stringify(report),
     reportHtml,
+    errorMessage: generation.errorMessage,
   });
 
   // Future integration points: Stripe checkout before generation, PDF generation after report_json, Resend email delivery after ready.
