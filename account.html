@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Account | Shadow Chart</title>
+    <meta
+      name="description"
+      content="Your Shadow Chart personal cabinet with saved mini readings and birth chart previews."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="cabinet-body">
+    <main class="cabinet-shell">
+      <nav class="nav cabinet-nav" aria-label="Account navigation">
+        <a class="brand" href="index.html" aria-label="Shadow Chart home">
+          <span class="brand__mark">SC</span>
+          <span>Shadow Chart</span>
+        </a>
+        <div class="auth-actions">
+          <a class="nav-button" href="index.html#reading">New Reading</a>
+          <button class="nav-button is-hidden" id="cabinet-logout" type="button">Log Out</button>
+        </div>
+      </nav>
+
+      <section class="cabinet-hero">
+        <p class="eyebrow">Personal cabinet</p>
+        <h1>My Account</h1>
+        <p id="cabinet-intro">Your saved mini readings and chart previews will appear here.</p>
+      </section>
+
+      <section class="cabinet-login is-hidden" id="cabinet-login">
+        <div class="account-card">
+          <p class="panel-kicker">Account required</p>
+          <h2>Log in to view your readings</h2>
+          <p>Your personal cabinet is connected to your Shadow Chart account.</p>
+          <div class="button-row">
+            <a class="button button--primary" href="index.html#account">Log In or Create Account</a>
+            <a class="button button--ghost" href="index.html#top">Back to Home</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="cabinet-layout is-hidden" id="cabinet-content">
+        <aside class="cabinet-list-panel">
+          <div class="cabinet-panel-heading">
+            <p class="panel-kicker">Saved readings</p>
+            <h2>Your Library</h2>
+          </div>
+          <div class="cabinet-list" id="cabinet-list">
+            <p class="empty-state">No saved readings yet.</p>
+          </div>
+        </aside>
+
+        <section class="cabinet-detail" id="cabinet-detail">
+          <div class="cabinet-empty">
+            <p class="panel-kicker">Reading preview</p>
+            <h2>Select a saved reading</h2>
+            <p>Choose a reading from your library to view the birth data and mini report.</p>
+          </div>
+        </section>
+      </section>
+
+      <p class="status-message cabinet-status" id="cabinet-status" aria-live="polite"></p>
+    </main>
+
+    <script src="account.js"></script>
+  </body>
+</html>

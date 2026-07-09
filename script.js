@@ -149,6 +149,7 @@ function renderAccount() {
     <h3>Welcome, ${user.name || "stargazer"}</h3>
     <p>${user.email}</p>
     <p>Your mini readings are saved in the site database.</p>
+    <a class="button button--ghost" href="account.html">Open Personal Cabinet</a>
   `;
 
   if (!state.savedReadings.length) {
@@ -169,6 +170,7 @@ function renderAccount() {
           <h4>${title}</h4>
           <p>${date} - ${reading.birthDate || "Birth date"} - ${reading.birthPlace || "Birth place"}</p>
           <p>${reading.cards[0].text}</p>
+          <a href="account.html">Open reading</a>
         </article>
       `;
     })
@@ -294,7 +296,7 @@ async function verifyEmail(code) {
   closeAuthModal();
   await loadAccount();
   if (state.pendingSaveAfterAuth) await saveReadingToAccount();
-  document.querySelector("#account").scrollIntoView({ behavior: "smooth" });
+  window.location.href = "account.html";
 }
 
 async function logIn(email, password) {
@@ -310,6 +312,7 @@ async function logIn(email, password) {
   closeAuthModal();
   await loadAccount();
   if (state.pendingSaveAfterAuth) await saveReadingToAccount();
+  if (!state.pendingSaveAfterAuth) window.location.href = "account.html";
 }
 
 async function requestLoginCode(email) {
@@ -337,6 +340,7 @@ async function logInWithCode(code) {
   closeAuthModal();
   await loadAccount();
   if (state.pendingSaveAfterAuth) await saveReadingToAccount();
+  if (!state.pendingSaveAfterAuth) window.location.href = "account.html";
 }
 
 async function saveReadingToAccount() {
@@ -362,7 +366,7 @@ async function saveReadingToAccount() {
     state.pendingSaveAfterAuth = false;
     await loadAccount();
     setStatus(deliveryStatus, "Saved to your personal cabinet.");
-    document.querySelector("#account").scrollIntoView({ behavior: "smooth" });
+    window.location.href = "account.html";
   } catch (error) {
     setStatus(deliveryStatus, error.message);
   }
@@ -504,7 +508,7 @@ authModal.addEventListener("click", (event) => {
 openLogin.addEventListener("click", () => openAuthModal("login"));
 openRegister.addEventListener("click", () => openAuthModal("register"));
 openAccount.addEventListener("click", () => {
-  document.querySelector("#account").scrollIntoView({ behavior: "smooth" });
+  window.location.href = "account.html";
 });
 logoutButton.addEventListener("click", async () => {
   try {
