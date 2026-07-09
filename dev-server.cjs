@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
+const { calculateReading } = require("./services/chart-engine.cjs");
 
 const root = path.resolve(__dirname);
 const dataDir = path.join(root, "data");
@@ -523,6 +524,22 @@ async function handleListReadings(request, response) {
   sendJson(response, 200, { readings });
 }
 
+async function handleCalculateReading(request, response) {
+  try {
+    const { birthDate, birthTime, birthPlace, firstName } = await readJson(request);
+    const reading = await calculateReading({
+      birthDate,
+      birthTime,
+      birthPlace,
+      firstName,
+    });
+
+    sendJson(response, 200, { reading });
+  } catch (error) {
+    sendJson(response, 400, { error: error.message || "Chart calculation failed." });
+  }
+}
+
 function renderMiniReadingEmail(reading) {
   const title = reading.firstName ? `${escapeHtml(reading.firstName)}'s Mini Reading` : "Your Mini Reading";
   const details = [
@@ -643,6 +660,12 @@ async function handleRequest(request, response) {
     if (request.method === "GET") return handleListReadings(request, response);
     if (request.method === "POST") return handleSaveReading(request, response);
     return sendMethodNotAllowed(response);
+  }
+
+  if (pathname === "/api/calculate-reading") {
+    if (request.method !== "POST") return sendMethodNotAllowed(response);
+    await handleCalculateReading(request, response);
+    return;
   }
 
   if (request.method === "POST" && pathname === "/api/send-mini-reading") {

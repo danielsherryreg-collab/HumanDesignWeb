@@ -6,12 +6,15 @@
   "main": "dev-server.cjs",
   "scripts": {
     "start": "node dev-server.cjs",
-    "check": "node --check dev-server.cjs && node --check script.js"
+    "check": "node --check dev-server.cjs && node --check services/chart-engine.cjs && node --check script.js"
   },
   "engines": {
     "node": ">=24"
   },
   "dependencies": {
+    "astronomy-engine": "^2.1.19",
+    "axios": "^1.18.1",
+    "geo-tz": "^8.1.7",
     "pg": "^8.16.3"
   }
 }

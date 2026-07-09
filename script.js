@@ -5,6 +5,7 @@ const checkoutButton = document.querySelector("#go-checkout");
 const readingOutput = document.querySelector("#reading-output");
 const progressItems = document.querySelectorAll(".progress__item");
 const miniDelivery = document.querySelector("#mini-delivery");
+const readingStatus = document.querySelector("#reading-status");
 const deliveryStatus = document.querySelector("#delivery-status");
 const saveToAccountButton = document.querySelector("#save-to-account");
 const emailReportForm = document.querySelector("#email-report-form");
@@ -58,6 +59,7 @@ async function api(path, options = {}) {
 }
 
 function setStatus(element, message) {
+  if (!element) return;
   element.textContent = message;
 }
 
@@ -71,92 +73,49 @@ function setStep(step) {
   });
 }
 
-function getBirthMood(timeValue) {
-  if (!timeValue) return "liminal";
-  const hour = Number(timeValue.split(":")[0]);
-  if (hour >= 5 && hour < 11) return "dawn";
-  if (hour >= 11 && hour < 17) return "solar";
-  if (hour >= 17 && hour < 22) return "twilight";
-  return "midnight";
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-function getMiniReadingCards() {
-  const name = state.firstName ? `${state.firstName}, ` : "";
-  const place = state.place || "your birthplace";
-  const mood = getBirthMood(state.time);
-
-  const interpretations = {
-    dawn: {
-      core: "your chart carries a threshold quality: part instinct, part awakening. You are pulled toward new beginnings, but you need meaning before momentum feels natural.",
-      drive: "your hidden drive is strongest when you are building something that proves your inner vision can survive daylight.",
-      mirror: "you tend to attract people who ask you to choose between comfort and becoming more honest with yourself.",
-    },
-    solar: {
-      core: "your chart reads like a pressure point between visibility and control. You are here to be seen, but not at the cost of becoming predictable.",
-      drive: "your hidden drive is recognition, though you may disguise it as competence, service, or independence.",
-      mirror: "relationships become mirrors for your authority: who gets to define you, and who helps you define yourself.",
-    },
-    twilight: {
-      core: "your chart carries a liminal signature. You can sense endings before others name them, and your growth often begins where certainty dissolves.",
-      drive: "your hidden drive is transformation. You move best when a chapter is ready to become something more honest.",
-      mirror: "love tends to reveal where you merge too quickly, withhold too long, or mistake intensity for intimacy.",
-    },
-    midnight: {
-      core: "your chart has a nocturnal intensity. You notice what is unsaid, and your power often comes from understanding the hidden room behind the visible one.",
-      drive: "your hidden drive is depth. Surface success rarely satisfies unless it carries emotional truth or private meaning.",
-      mirror: "relationships may activate your fear of being fully known, then quietly ask you to stop performing invulnerability.",
-    },
-    liminal: {
-      core: "your chart points toward a layered inner life: intuitive, observant, and difficult to reduce to one simple role.",
-      drive: "your hidden drive is coherence. You want the outside shape of your life to finally match what you sense within.",
-      mirror: "relationships reveal the gap between who you protect and who you are ready to become.",
-    },
-  };
-
-  const selected = interpretations[mood];
-
-  return [
-    {
-      title: "Core Pattern",
-      text: `${name}${selected.core}`,
-    },
-    {
-      title: "Hidden Drive",
-      text: `Born in ${place}, ${selected.drive}`,
-    },
-    {
-      title: "Relationship Mirror",
-      text: selected.mirror,
-    },
-  ];
-}
-
-function buildMiniReading() {
-  const cards = getMiniReadingCards();
-
-  state.currentReading = {
-    id: Date.now().toString(),
-    createdAt: new Date().toISOString(),
-    firstName: state.firstName,
-    birthDate: state.date,
-    birthTime: state.time,
-    birthPlace: state.place,
-    cards,
-  };
-
+function renderReadingCards(cards) {
   readingOutput.innerHTML = cards
     .map(
       (card, index) => `
         <article class="reading-card">
           <span class="card-number">${String(index + 1).padStart(2, "0")}</span>
-          <h3>${card.title}</h3>
-          <p>${card.text}</p>
+          <h3>${escapeHtml(card.title)}</h3>
+          <p>${escapeHtml(card.text)}</p>
         </article>
       `,
     )
     .join("");
+}
+
+async function buildMiniReading() {
+  setStatus(readingStatus, "Calculating your natal chart...");
+  setStatus(deliveryStatus, "");
+  miniDelivery.classList.add("is-hidden");
+
+  const { reading } = await api("/api/calculate-reading", {
+    method: "POST",
+    body: JSON.stringify({
+      birthDate: state.date,
+      birthTime: state.time,
+      birthPlace: state.place,
+      firstName: state.firstName,
+    }),
+  });
+
+  state.currentReading = reading;
+  renderReadingCards(reading.cards);
 
   miniDelivery.classList.remove("is-hidden");
+  setStatus(readingStatus, "");
   setStatus(deliveryStatus, "");
 }
 
@@ -390,18 +349,29 @@ birthForm.addEventListener("submit", (event) => {
   setStep("name");
 });
 
+async function revealMiniReading() {
+  try {
+    saveNameButton.disabled = true;
+    skipNameButton.disabled = true;
+    await buildMiniReading();
+    setStep("mini");
+    document.querySelector("#reading").scrollIntoView({ behavior: "smooth" });
+  } catch (error) {
+    setStatus(readingStatus, error.message);
+  } finally {
+    saveNameButton.disabled = false;
+    skipNameButton.disabled = false;
+  }
+}
+
 saveNameButton.addEventListener("click", () => {
   state.firstName = document.querySelector("#first-name").value.trim();
-  buildMiniReading();
-  setStep("mini");
-  document.querySelector("#reading").scrollIntoView({ behavior: "smooth" });
+  revealMiniReading();
 });
 
 skipNameButton.addEventListener("click", () => {
   state.firstName = "";
-  buildMiniReading();
-  setStep("mini");
-  document.querySelector("#reading").scrollIntoView({ behavior: "smooth" });
+  revealMiniReading();
 });
 
 checkoutButton.addEventListener("click", () => {
