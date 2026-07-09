@@ -43,6 +43,7 @@ const state = {
   pendingSaveAfterAuth: false,
   pendingVerificationEmail: "",
   pendingLoginEmail: "",
+  redirectAfterAuth: "",
 };
 
 async function api(path, options = {}) {
@@ -296,7 +297,7 @@ async function verifyEmail(code) {
   closeAuthModal();
   await loadAccount();
   if (state.pendingSaveAfterAuth) await saveReadingToAccount();
-  window.location.href = "account.html";
+  if (!state.pendingSaveAfterAuth) redirectAfterAuth();
 }
 
 async function logIn(email, password) {
@@ -312,7 +313,7 @@ async function logIn(email, password) {
   closeAuthModal();
   await loadAccount();
   if (state.pendingSaveAfterAuth) await saveReadingToAccount();
-  if (!state.pendingSaveAfterAuth) window.location.href = "account.html";
+  if (!state.pendingSaveAfterAuth) redirectAfterAuth();
 }
 
 async function requestLoginCode(email) {
@@ -340,7 +341,13 @@ async function logInWithCode(code) {
   closeAuthModal();
   await loadAccount();
   if (state.pendingSaveAfterAuth) await saveReadingToAccount();
-  if (!state.pendingSaveAfterAuth) window.location.href = "account.html";
+  if (!state.pendingSaveAfterAuth) redirectAfterAuth();
+}
+
+function redirectAfterAuth() {
+  if (state.redirectAfterAuth === "account" || state.currentUser) {
+    window.location.href = "account.html";
+  }
 }
 
 async function saveReadingToAccount() {
@@ -535,4 +542,14 @@ document.querySelectorAll("[data-scroll-target]").forEach((button) => {
   });
 });
 
-loadAccount();
+function openRequestedAuthMode() {
+  const params = new URLSearchParams(window.location.search);
+  const authMode = params.get("auth");
+  state.redirectAfterAuth = params.get("next") === "account" ? "account" : "";
+
+  if (authMode === "login" || authMode === "register") {
+    openAuthModal(authMode);
+  }
+}
+
+loadAccount().then(openRequestedAuthMode);
