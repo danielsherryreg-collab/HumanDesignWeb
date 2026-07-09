@@ -1,0 +1,14 @@
+{
+  "name": "human-design-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shadow Chart web app with birth chart mini readings, accounts, SQLite storage, and Resend email verification.",
+  "main": "dev-server.cjs",
+  "scripts": {
+    "start": "node dev-server.cjs",
+    "check": "node --check dev-server.cjs && node --check script.js"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shadow Chart | Dark Astrology Birth Chart Report</title>
+    <meta
+      name="description"
+      content="A dark astrology birth chart experience with a free mini reading and a premium full natal report."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="site-shell">
+      <section class="hero" id="top">
+        <div class="hero__backdrop" aria-hidden="true"></div>
+        <nav class="nav" aria-label="Main navigation">
+          <a class="brand" href="#top" aria-label="Shadow Chart home">
+            <span class="brand__mark">SC</span>
+            <span>Shadow Chart</span>
+          </a>
+          <div class="nav__links">
+            <a href="#reading">Mini Reading</a>
+            <a href="#full-report">Full Report</a>
+            <a href="#account">My Account</a>
+            <a href="#checkout">Checkout</a>
+          </div>
+          <div class="auth-actions">
+            <button class="nav-button" id="open-login" type="button">Log In</button>
+            <button class="nav-button nav-button--filled" id="open-register" type="button">Create Account</button>
+            <button class="nav-button is-hidden" id="open-account" type="button">My Account</button>
+            <button class="nav-button is-hidden" id="logout-button" type="button">Log Out</button>
+          </div>
+        </nav>
+
+        <div class="hero__content">
+          <div class="hero__copy">
+            <p class="eyebrow">Dark astrology birth chart reading</p>
+            <h1>Your Natal Shadow, Translated</h1>
+            <p class="hero__lead">
+              Enter your birth details and receive a free mini reading that reveals
+              the hidden patterns behind your drive, emotions, relationships, and
+              life direction.
+            </p>
+            <div class="hero__proof">
+              <span>Free mini reading</span>
+              <span>Premium PDF-ready flow</span>
+              <span>No login required</span>
+            </div>
+          </div>
+
+          <section class="flow-card" aria-label="Birth chart form">
+            <div class="progress" aria-label="Reading progress">
+              <span class="progress__item is-active" data-progress="details">1 Birth Data</span>
+              <span class="progress__item" data-progress="name">2 Personalize</span>
+              <span class="progress__item" data-progress="mini">3 Mini Reading</span>
+              <span class="progress__item" data-progress="full">4 Full Report</span>
+            </div>
+
+            <form class="step-panel is-visible" id="birth-form" data-step="details">
+              <div class="panel-heading">
+                <p class="panel-kicker">Step 1</p>
+                <h2>Enter your birth data</h2>
+                <p>Precise date, time, and place make the reading feel sharper.</p>
+              </div>
+
+              <label>
+                <span>Birth Date</span>
+                <input id="birth-date" name="birth-date" type="date" required />
+              </label>
+              <label>
+                <span>Birth Time</span>
+                <input id="birth-time" name="birth-time" type="time" required />
+              </label>
+              <label>
+                <span>Birth Place</span>
+                <input
+                  id="birth-place"
+                  name="birth-place"
+                  type="text"
+                  placeholder="City, country"
+                  autocomplete="address-level2"
+                  required
+                />
+              </label>
+
+              <p class="privacy-note">Your data is used only to generate this reading.</p>
+              <button class="button button--primary" type="submit">Continue</button>
+            </form>
+
+            <section class="step-panel" id="name-step" data-step="name" aria-live="polite">
+              <div class="panel-heading">
+                <p class="panel-kicker">Step 2</p>
+                <h2>Want us to personalize your reading?</h2>
+                <p>Add your first name, or skip this step and continue to your mini reading.</p>
+              </div>
+              <label>
+                <span>First Name</span>
+                <input id="first-name" type="text" placeholder="Optional" autocomplete="given-name" />
+              </label>
+              <div class="button-row">
+                <button class="button button--primary" id="save-name" type="button">Personalize Reading</button>
+                <button class="button button--ghost" id="skip-name" type="button">Skip and Reveal</button>
+              </div>
+            </section>
+
+            <section class="step-panel" data-step="mini" aria-live="polite">
+              <div class="panel-heading">
+                <p class="panel-kicker">Step 3</p>
+                <h2>Your mini reading is unlocked</h2>
+                <p>
+                  Scroll down to read the free preview, then continue to the full
+                  report when you are ready for the deeper chart interpretation.
+                </p>
+              </div>
+              <button class="button button--primary" type="button" data-scroll-target="#full-report">
+                View Full Report Preview
+              </button>
+            </section>
+          </section>
+        </div>
+      </section>
+
+      <section class="reading-section" id="reading">
+        <div class="section-heading">
+          <p class="eyebrow">Free mini report</p>
+          <h2>Your first reading appears here</h2>
+          <p>Complete the birth data step to unlock a short, polished preview of the full report.</p>
+        </div>
+
+        <div class="reading-grid" id="reading-output">
+          <article class="reading-card reading-card--locked">
+            <span class="card-number">01</span>
+            <h3>Core Pattern</h3>
+            <p>Your mini reading will translate the strongest theme in your chart.</p>
+          </article>
+          <article class="reading-card reading-card--locked">
+            <span class="card-number">02</span>
+            <h3>Hidden Drive</h3>
+            <p>You will see what pushes you forward beneath the surface.</p>
+          </article>
+          <article class="reading-card reading-card--locked">
+            <span class="card-number">03</span>
+            <h3>Relationship Mirror</h3>
+            <p>The preview will show how your chart reflects love and attachment patterns.</p>
+          </article>
+        </div>
+
+        <div class="delivery-actions is-hidden" id="mini-delivery">
+          <div>
+            <p class="panel-kicker">Save your preview</p>
+            <h3>Where should we send your mini reading?</h3>
+            <p>
+              Save it to your personal account, send it to email, or do both.
+              Email delivery is handled through the backend and Resend.
+            </p>
+          </div>
+          <div class="delivery-controls">
+            <button class="button button--primary" id="save-to-account" type="button">Save to My Account</button>
+            <form id="email-report-form" class="email-form">
+              <label>
+                <span>Email Address</span>
+                <input id="report-email" type="email" placeholder="you@example.com" />
+              </label>
+              <button class="button button--ghost" type="submit">Send to Email</button>
+            </form>
+          </div>
+          <p class="status-message" id="delivery-status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section class="account-section" id="account">
+        <div class="section-heading">
+          <p class="eyebrow">Personal cabinet</p>
+          <h2>My Account</h2>
+          <p>
+            Create an account or log in to keep mini readings in one place.
+            Account data and saved readings are now handled by the backend database.
+          </p>
+        </div>
+        <div class="account-layout">
+          <div class="account-card" id="account-summary">
+            <p class="panel-kicker">Account status</p>
+            <h3>You are not logged in yet</h3>
+            <p>Create an account to save this reading to your personal cabinet.</p>
+            <div class="button-row">
+              <button class="button button--primary" type="button" data-auth-mode="register">Create Account</button>
+              <button class="button button--ghost" type="button" data-auth-mode="login">Log In</button>
+            </div>
+          </div>
+          <div class="account-card">
+            <p class="panel-kicker">Saved readings</p>
+            <div class="saved-readings" id="saved-readings">
+              <p class="empty-state">Your saved mini readings will appear here.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="full-report" id="full-report">
+        <div class="report-copy">
+          <p class="eyebrow">Step 4</p>
+          <h2>Go deeper with the Full Birth Chart Report</h2>
+          <p>
+            The free mini reading gives the first layer. The full report is designed
+            as a premium PDF-style interpretation with deeper chart sections, shadow
+            patterns, love dynamics, career direction, and practical reflection prompts.
+          </p>
+        </div>
+        <div class="report-panel">
+          <div class="price-line">
+            <span>Full Birth Chart Report</span>
+            <strong>$29</strong>
+          </div>
+          <ul>
+            <li>Complete natal chart interpretation</li>
+            <li>Shadow patterns and emotional triggers</li>
+            <li>Love, intimacy, and relationship mirrors</li>
+            <li>Career energy and life direction</li>
+            <li>PDF-ready delivery screen foundation</li>
+          </ul>
+          <button class="button button--primary" id="go-checkout" type="button">Get Full Birth Chart Report</button>
+        </div>
+      </section>
+
+      <section class="checkout-shell" id="checkout">
+        <div class="checkout-card">
+          <p class="panel-kicker">Step 5 foundation</p>
+          <h2>Secure Checkout</h2>
+          <p>
+            Payment integration is prepared as a front-end placeholder. Later this block
+            can connect to Stripe, Telegram payment, or another checkout provider.
+          </p>
+          <div class="checkout-summary">
+            <span>Shadow Chart Full Report</span>
+            <strong>$29</strong>
+          </div>
+          <button class="button button--disabled" type="button" disabled>Payment Integration Coming Soon</button>
+        </div>
+
+        <div class="checkout-card" id="delivery">
+          <p class="panel-kicker">Step 6 foundation</p>
+          <h2>Your Report Delivery</h2>
+          <p>
+            This screen is ready for automatic PDF or private report-page delivery once
+            the backend is connected.
+          </p>
+          <div class="delivery-preview">
+            <span>PDF report</span>
+            <span>Private report page</span>
+            <span>Email delivery</span>
+          </div>
+          <button class="button button--ghost" type="button">Download PDF Placeholder</button>
+        </div>
+      </section>
+    </main>
+
+    <div class="modal-backdrop is-hidden" id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <div class="auth-modal">
+        <button class="modal-close" id="close-auth" type="button" aria-label="Close">×</button>
+        <p class="panel-kicker" id="auth-kicker">Account</p>
+        <h2 id="auth-title">Create Account</h2>
+        <p class="auth-note" id="auth-note">
+          Save mini readings and return to your personal cabinet later.
+        </p>
+        <form id="auth-form">
+          <label>
+            <span>Name</span>
+            <input id="auth-name" type="text" placeholder="First name" autocomplete="given-name" />
+          </label>
+          <label>
+            <span>Email</span>
+            <input id="auth-email" type="email" placeholder="you@example.com" autocomplete="email" required />
+          </label>
+          <label>
+            <span>Password</span>
+            <input id="auth-password" type="password" placeholder="At least 6 characters" autocomplete="current-password" required />
+          </label>
+          <label class="is-hidden" id="auth-code-row">
+            <span>Verification Code</span>
+            <input id="auth-code" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit code" autocomplete="one-time-code" />
+          </label>
+          <button class="button button--primary" id="auth-submit" type="submit">Create Account</button>
+        </form>
+        <button class="link-button" id="switch-auth" type="button">Already have an account? Log in</button>
+        <p class="status-message" id="auth-status" aria-live="polite"></p>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
