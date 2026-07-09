@@ -22,6 +22,7 @@ const authCode = document.querySelector("#auth-code");
 const authSubmit = document.querySelector("#auth-submit");
 const authStatus = document.querySelector("#auth-status");
 const switchAuth = document.querySelector("#switch-auth");
+const codeLogin = document.querySelector("#code-login");
 const closeAuth = document.querySelector("#close-auth");
 const openLogin = document.querySelector("#open-login");
 const openRegister = document.querySelector("#open-register");
@@ -41,6 +42,7 @@ const state = {
   savedReadings: [],
   pendingSaveAfterAuth: false,
   pendingVerificationEmail: "",
+  pendingLoginEmail: "",
 };
 
 async function api(path, options = {}) {
@@ -202,30 +204,56 @@ function openAuthModal(mode) {
   state.authMode = mode;
   const isRegister = mode === "register";
   const isVerify = mode === "verify";
+  const isLogin = mode === "login";
+  const isLoginCode = mode === "login-code";
+  const isLoginCodeConfirm = isLoginCode && Boolean(state.pendingLoginEmail);
   authModal.classList.remove("is-hidden");
 
-  authTitle.textContent = isVerify ? "Verify Your Email" : isRegister ? "Create Account" : "Log In";
+  authTitle.textContent = isVerify
+    ? "Verify Your Email"
+    : isRegister
+      ? "Create Account"
+      : isLoginCodeConfirm
+        ? "Enter Login Code"
+        : isLoginCode
+          ? "Log In With Email Code"
+          : "Log In";
   authNote.textContent = isVerify
     ? `Enter the 6-digit code we sent to ${state.pendingVerificationEmail}.`
+    : isLoginCodeConfirm
+      ? `Enter the 6-digit login code we sent to ${state.pendingLoginEmail}.`
+      : isLoginCode
+        ? "Enter your account email and we will send a one-time login code."
+        : isRegister
+          ? "Create your account, then confirm your email with a verification code."
+          : "Log in to save this mini reading to your personal cabinet.";
+  authSubmit.textContent = isVerify
+    ? "Verify Email"
     : isRegister
-      ? "Create your account, then confirm your email with a verification code."
-      : "Log in to save this mini reading to your personal cabinet.";
-  authSubmit.textContent = isVerify ? "Verify Email" : isRegister ? "Send Verification Code" : "Log In";
+      ? "Send Verification Code"
+      : isLoginCodeConfirm
+        ? "Log In"
+        : isLoginCode
+          ? "Send Login Code"
+          : "Log In";
   switchAuth.textContent = isVerify
     ? "Use a different email"
+    : isLoginCode
+      ? "Use password instead"
     : isRegister
       ? "Already have an account? Log in"
       : "New here? Create account";
   authName.parentElement.classList.toggle("is-hidden", !isRegister);
-  authEmail.parentElement.classList.toggle("is-hidden", isVerify);
-  authPassword.parentElement.classList.toggle("is-hidden", isVerify);
-  authCodeRow.classList.toggle("is-hidden", !isVerify);
-  authEmail.required = !isVerify;
-  authPassword.required = !isVerify;
-  authCode.required = isVerify;
+  authEmail.parentElement.classList.toggle("is-hidden", isVerify || isLoginCodeConfirm);
+  authPassword.parentElement.classList.toggle("is-hidden", isVerify || isLoginCode);
+  authCodeRow.classList.toggle("is-hidden", !isVerify && !isLoginCodeConfirm);
+  codeLogin.classList.toggle("is-hidden", !isLogin);
+  authEmail.required = !isVerify && !isLoginCodeConfirm;
+  authPassword.required = isRegister || isLogin;
+  authCode.required = isVerify || isLoginCodeConfirm;
   authStatus.textContent = "";
 
-  if (isVerify) {
+  if (isVerify || isLoginCodeConfirm) {
     authCode.value = "";
     authCode.focus();
   }
@@ -279,6 +307,33 @@ async function logIn(email, password) {
   });
 
   state.currentUser = user;
+  closeAuthModal();
+  await loadAccount();
+  if (state.pendingSaveAfterAuth) await saveReadingToAccount();
+}
+
+async function requestLoginCode(email) {
+  const result = await api("/api/auth/request-login-code", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+
+  state.pendingLoginEmail = result.email || email;
+  openAuthModal("login-code");
+  setStatus(authStatus, "Login code sent. Check your inbox.");
+}
+
+async function logInWithCode(code) {
+  const { user } = await api("/api/auth/login-code", {
+    method: "POST",
+    body: JSON.stringify({
+      email: state.pendingLoginEmail,
+      code,
+    }),
+  });
+
+  state.currentUser = user;
+  state.pendingLoginEmail = "";
   closeAuthModal();
   await loadAccount();
   if (state.pendingSaveAfterAuth) await saveReadingToAccount();
@@ -393,7 +448,7 @@ authForm.addEventListener("submit", async (event) => {
   const email = authEmail.value.trim().toLowerCase();
   const password = authPassword.value;
 
-  if (state.authMode !== "verify" && password.length < 6) {
+  if ((state.authMode === "register" || state.authMode === "login") && password.length < 6) {
     setStatus(authStatus, "Password should be at least 6 characters.");
     return;
   }
@@ -404,6 +459,10 @@ authForm.addEventListener("submit", async (event) => {
 
     if (state.authMode === "verify") {
       await verifyEmail(authCode.value.trim());
+    } else if (state.authMode === "login-code" && state.pendingLoginEmail) {
+      await logInWithCode(authCode.value.trim());
+    } else if (state.authMode === "login-code") {
+      await requestLoginCode(email);
     } else if (state.authMode === "register") {
       await register(authName.value.trim(), email, password);
     } else {
@@ -423,7 +482,18 @@ switchAuth.addEventListener("click", () => {
     return;
   }
 
+  if (state.authMode === "login-code") {
+    state.pendingLoginEmail = "";
+    openAuthModal("login");
+    return;
+  }
+
   openAuthModal(state.authMode === "register" ? "login" : "register");
+});
+
+codeLogin.addEventListener("click", () => {
+  state.pendingLoginEmail = "";
+  openAuthModal("login-code");
 });
 
 closeAuth.addEventListener("click", closeAuthModal);

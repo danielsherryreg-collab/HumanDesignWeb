@@ -99,6 +99,15 @@ function createDatabase() {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             expires_at TIMESTAMPTZ NOT NULL
           );
+
+          CREATE TABLE IF NOT EXISTS login_codes (
+            email TEXT PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
+            code_hash TEXT NOT NULL,
+            code_salt TEXT NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            expires_at TIMESTAMPTZ NOT NULL
+          );
         `);
       },
       async get(sql, params = []) {
@@ -167,6 +176,16 @@ function createDatabase() {
           attempts INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           expires_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS login_codes (
+          email TEXT PRIMARY KEY,
+          code_hash TEXT NOT NULL,
+          code_salt TEXT NOT NULL,
+          attempts INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          expires_at TEXT NOT NULL,
+          FOREIGN KEY (email) REFERENCES users(email) ON DELETE CASCADE
         );
       `);
     },
@@ -361,6 +380,24 @@ function renderVerificationEmail(code) {
   `;
 }
 
+function renderLoginCodeEmail(code) {
+  return `
+    <div style="margin: 0; padding: 32px; background: #050505; color: #efe8da; font-family: Arial, sans-serif;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 560px; margin: 0 auto; background: #100e0f; border: 1px solid #2b2525; border-radius: 8px;">
+        <tr>
+          <td style="padding: 28px;">
+            <p style="margin: 0 0 10px; color: #b9975b; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;">Shadow Chart</p>
+            <h1 style="margin: 0 0 12px; color: #efe8da; font-size: 28px;">Your login code</h1>
+            <p style="margin: 0 0 22px; color: #c9beb0; line-height: 1.7;">Enter this code to log in to your Shadow Chart account.</p>
+            <p style="margin: 0; padding: 18px 22px; background: #050505; border: 1px solid #2b2525; border-radius: 8px; color: #b9975b; font-size: 32px; font-weight: 700; letter-spacing: 8px; text-align: center;">${escapeHtml(code)}</p>
+            <p style="margin: 22px 0 0; color: #8f8579; line-height: 1.6;">This code expires in 10 minutes. If you did not request it, you can ignore this email.</p>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `;
+}
+
 async function handleRegister(request, response) {
   const { name, email, password } = await readJson(request);
   const normalizedEmail = String(email || "").trim().toLowerCase();
@@ -482,6 +519,99 @@ async function handleLogin(request, response) {
   sendJson(response, 200, {
     user: publicUser(user),
   });
+}
+
+async function handleRequestLoginCode(request, response) {
+  const { email } = await readJson(request);
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+
+  if (!normalizedEmail.includes("@")) {
+    sendJson(response, 400, { error: "A valid email is required." });
+    return;
+  }
+
+  const user = await db.get("SELECT id, email FROM users WHERE email = ?", [normalizedEmail]);
+  if (!user) {
+    sendJson(response, 404, { error: "No account exists for this email. Create an account first." });
+    return;
+  }
+
+  const code = String(crypto.randomInt(100000, 1000000));
+  const { hash, salt } = hashCode(code);
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 10).toISOString();
+
+  await db.run(
+    `
+      INSERT INTO login_codes (email, code_hash, code_salt, attempts, expires_at)
+      VALUES (?, ?, ?, 0, ?)
+      ON CONFLICT(email) DO UPDATE SET
+        code_hash = excluded.code_hash,
+        code_salt = excluded.code_salt,
+        attempts = 0,
+        created_at = CURRENT_TIMESTAMP,
+        expires_at = excluded.expires_at
+    `,
+    [normalizedEmail, hash, salt, expiresAt],
+  );
+
+  try {
+    await sendEmail({
+      to: normalizedEmail,
+      subject: "Your Shadow Chart login code",
+      html: renderLoginCodeEmail(code),
+      text: `Your Shadow Chart login code is ${code}. It expires in 10 minutes.`,
+    });
+  } catch (error) {
+    sendJson(response, 500, { error: error.message });
+    return;
+  }
+
+  sendJson(response, 200, {
+    email: normalizedEmail,
+    message: "Login code sent.",
+  });
+}
+
+async function handleLoginWithCode(request, response) {
+  const { email, code } = await readJson(request);
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedCode = String(code || "").replace(/\D/g, "");
+  const loginCode = await db.get("SELECT * FROM login_codes WHERE email = ?", [normalizedEmail]);
+
+  if (!loginCode) {
+    sendJson(response, 404, { error: "Login code was not found. Request a new code." });
+    return;
+  }
+
+  if (new Date(loginCode.expires_at).getTime() < Date.now()) {
+    await db.run("DELETE FROM login_codes WHERE email = ?", [normalizedEmail]);
+    sendJson(response, 410, { error: "Login code expired. Request a new code." });
+    return;
+  }
+
+  if (loginCode.attempts >= 5) {
+    await db.run("DELETE FROM login_codes WHERE email = ?", [normalizedEmail]);
+    sendJson(response, 429, { error: "Too many incorrect attempts. Request a new code." });
+    return;
+  }
+
+  const { hash } = hashCode(normalizedCode, loginCode.code_salt);
+  if (hash !== loginCode.code_hash) {
+    await db.run("UPDATE login_codes SET attempts = attempts + 1 WHERE email = ?", [normalizedEmail]);
+    sendJson(response, 401, { error: "Login code is incorrect." });
+    return;
+  }
+
+  const user = await db.get("SELECT id, name, email, created_at FROM users WHERE email = ?", [normalizedEmail]);
+  if (!user) {
+    await db.run("DELETE FROM login_codes WHERE email = ?", [normalizedEmail]);
+    sendJson(response, 404, { error: "Account was not found. Create an account first." });
+    return;
+  }
+
+  await db.run("DELETE FROM login_codes WHERE email = ?", [normalizedEmail]);
+  await createSession(response, user.id);
+  sendJson(response, 200, { user: publicUser(user) });
 }
 
 async function handleLogout(request, response) {
@@ -641,6 +771,18 @@ async function handleRequest(request, response) {
   if (pathname === "/api/auth/login") {
     if (request.method !== "POST") return sendMethodNotAllowed(response);
     await handleLogin(request, response);
+    return;
+  }
+
+  if (pathname === "/api/auth/request-login-code") {
+    if (request.method !== "POST") return sendMethodNotAllowed(response);
+    await handleRequestLoginCode(request, response);
+    return;
+  }
+
+  if (pathname === "/api/auth/login-code") {
+    if (request.method !== "POST") return sendMethodNotAllowed(response);
+    await handleLoginWithCode(request, response);
     return;
   }
 
