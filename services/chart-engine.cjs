@@ -60,6 +60,124 @@ const SIGN_KEYWORDS = {
   Pisces: "sensitivity, surrender, imagination",
 };
 
+const SIGN_SHADOWS = {
+  Aries: "impatience, defensiveness, and the urge to prove yourself before you feel safe",
+  Taurus: "attachment to comfort, fear of disruption, and confusing stability with staying still",
+  Gemini: "mental noise, scattered attention, and using cleverness to avoid emotional truth",
+  Cancer: "protective withdrawal, old emotional memory, and carrying needs you have not named",
+  Leo: "performance, pride, and the ache of wanting to be witnessed without having to earn love",
+  Virgo: "self-criticism, over-analysis, and the habit of turning care into pressure",
+  Libra: "people-pleasing, indecision, and losing your center while trying to keep harmony",
+  Scorpio: "control, suspicion, intensity, and the fear of being truly exposed",
+  Sagittarius: "restlessness, blunt escape, and turning belief into a way to outrun vulnerability",
+  Capricorn: "emotional restraint, over-responsibility, and measuring worth through endurance",
+  Aquarius: "detachment, exile, and hiding tenderness behind independence or intelligence",
+  Pisces: "porous boundaries, idealization, and disappearing into what others need from you",
+};
+
+const SIGN_MEDICINE = {
+  Aries: "choose clean action without treating every delay as a threat",
+  Taurus: "let your body teach you the difference between peace and stagnation",
+  Gemini: "speak the simple truth before your mind makes it more elegant than honest",
+  Cancer: "protect your softness without building a life around old pain",
+  Leo: "create from devotion rather than from the hunger to be chosen",
+  Virgo: "turn discernment into craft, not punishment",
+  Libra: "practice harmony that includes your own desire",
+  Scorpio: "let intimacy be a place of revelation, not surveillance",
+  Sagittarius: "anchor your freedom in meaning instead of escape",
+  Capricorn: "build with ambition while allowing support to reach you",
+  Aquarius: "bring your difference closer to people instead of using it as distance",
+  Pisces: "keep your compassion, but give it edges",
+};
+
+const PLANET_ROLES = {
+  Sun: "identity, vitality, and the central storyline of becoming",
+  Moon: "emotional memory, needs, and instinctive self-protection",
+  Mercury: "language, perception, and the way your mind organizes reality",
+  Venus: "attraction, pleasure, bonding, and what makes connection feel safe",
+  Mars: "desire, anger, drive, and the way you move under pressure",
+  Jupiter: "growth, faith, opportunity, and the pattern that expands your life",
+  Saturn: "discipline, fear, maturity, and the lesson that becomes authority",
+  Uranus: "liberation, disruption, originality, and the place you refuse to be contained",
+  Neptune: "dreams, longing, surrender, and the fog that asks for spiritual clarity",
+  Pluto: "power, compulsion, transformation, and the material you cannot keep unconscious",
+};
+
+const ASPECT_MEANINGS = {
+  conjunction: "two inner forces fused together, making this theme hard to ignore",
+  sextile: "a quiet opportunity that becomes stronger when you consciously use it",
+  square: "friction that pushes growth through discomfort, tension, and choice",
+  trine: "a natural talent or ease that can become powerful when you stop taking it for granted",
+  opposition: "a polarity that plays out through relationships, projection, and integration",
+};
+
+const GATE_THEMES = {
+  1: "creative self-expression",
+  2: "receptive direction",
+  3: "ordering chaos into a new beginning",
+  4: "mental answers and doubt",
+  5: "natural rhythm and patience",
+  6: "emotional boundaries and intimacy",
+  7: "guidance and leadership",
+  8: "contribution through individual style",
+  9: "focus and detailed attention",
+  10: "self-love and correct behavior",
+  11: "ideas, memory, and inner imagery",
+  12: "selective expression",
+  13: "listening, secrets, and memory",
+  14: "resources and direction through work",
+  15: "extremes, magnetism, and broad love",
+  16: "skills, enthusiasm, and mastery",
+  17: "opinions and pattern recognition",
+  18: "correction, refinement, and judgment",
+  19: "sensitivity, needs, and belonging",
+  20: "presence in the now",
+  21: "control, will, and material order",
+  22: "grace, openness, and emotional mood",
+  23: "simplification and explanation",
+  24: "returning thoughts and rationalization",
+  25: "innocence, spirit, and the open heart",
+  26: "persuasion, memory, and integrity",
+  27: "nourishment and responsibility",
+  28: "struggle, risk, and purpose",
+  29: "commitment and saying yes",
+  30: "desire, intensity, and emotional fate",
+  31: "influence and democratic leadership",
+  32: "continuity, instinct, and fear of failure",
+  33: "privacy, retreat, and storytelling",
+  34: "raw power and self-generated movement",
+  35: "experience, change, and emotional hunger",
+  36: "crisis, feeling, and initiation",
+  37: "family, agreements, and emotional loyalty",
+  38: "the fight for meaning",
+  39: "provocation and emotional awakening",
+  40: "willpower, solitude, and agreements",
+  41: "fantasy, desire, and new cycles",
+  42: "growth, completion, and maturation",
+  43: "breakthrough and inner knowing",
+  44: "pattern memory and instinctive recognition",
+  45: "gathering, ownership, and material influence",
+  46: "embodiment and love of the body",
+  47: "realization after pressure",
+  48: "depth and fear of inadequacy",
+  49: "principles, rejection, and revolution",
+  50: "values, responsibility, and protection",
+  51: "shock, courage, and initiation",
+  52: "stillness and concentration",
+  53: "beginnings and pressure to start",
+  54: "ambition and transformation through drive",
+  55: "spirit, mood, and emotional abundance",
+  56: "stimulation, stories, and meaning",
+  57: "intuition and survival clarity",
+  58: "joy, vitality, and improvement",
+  59: "intimacy, fertility, and breaking barriers",
+  60: "limitation and mutation",
+  61: "inner truth and mystery",
+  62: "details, naming, and precision",
+  63: "doubt, suspicion, and future logic",
+  64: "confusion before clarity",
+};
+
 const HOUSE_TOPICS = {
   1: "identity and first impressions",
   2: "money, values, and self-worth",
@@ -230,41 +348,88 @@ function calculateAspects(planets) {
   return result.sort((a, b) => a.orb - b.orb);
 }
 
+function formatPlacement(planet) {
+  return `${planet.label} ${planet.degree} deg ${planet.sign}, house ${planet.house}`;
+}
+
+function gateTheme(gate) {
+  return GATE_THEMES[gate] || "a specific life theme";
+}
+
+function describeAspect(aspect) {
+  if (!aspect) return "";
+  return `${aspect.from} ${aspect.type} ${aspect.to} (${aspect.orb} deg orb): ${ASPECT_MEANINGS[aspect.type]}.`;
+}
+
+function findAspect(aspects, from, to) {
+  return aspects.find(
+    (aspect) =>
+      (aspect.from === from && aspect.to === to) ||
+      (aspect.from === to && aspect.to === from),
+  );
+}
+
+function buildFocusList(planets) {
+  return [planets.sun, planets.moon, planets.mercury, planets.venus, planets.mars]
+    .map((planet) => `${planet.label}: Gate ${planet.hd.gate}.${planet.hd.line} (${gateTheme(planet.hd.gate)})`)
+    .join("; ");
+}
+
 function buildCards(chart, firstName) {
   const name = firstName ? `${firstName}, ` : "";
   const sun = chart.planets.sun;
   const moon = chart.planets.moon;
+  const mercury = chart.planets.mercury;
   const mars = chart.planets.mars;
   const venus = chart.planets.venus;
   const saturn = chart.planets.saturn;
+  const pluto = chart.planets.pluto;
+  const asc = chart.ascendant;
   const strongestAspect = chart.aspects[0];
+  const relationshipAspect = findAspect(chart.aspects, "Venus", "Mars") || findAspect(chart.aspects, "Moon", "Venus");
+  const pressureAspect = findAspect(chart.aspects, "Sun", "Saturn") || findAspect(chart.aspects, "Moon", "Saturn") || strongestAspect;
+  const sunGateTheme = gateTheme(sun.hd.gate);
+  const moonGateTheme = gateTheme(moon.hd.gate);
+  const designSun = chart.humanDesign.designSun;
 
   return [
     {
+      title: "Chart Signature",
+      text: `${name}your mini-reading begins with the Big Three: Sun in ${sun.sign}, Moon in ${moon.sign}, and ${asc.sign} rising. This creates a field where ${SIGN_KEYWORDS[sun.sign]} is filtered through ${SIGN_KEYWORDS[moon.sign]} and presented to the world through ${SIGN_KEYWORDS[asc.sign]}. The visible self may look like ${asc.sign}, but the life-force underneath is trying to become more ${sun.sign}.`,
+    },
+    {
       title: "Core Pattern",
-      text: `${name}your Sun is at ${sun.degree} deg ${sun.sign} in house ${sun.house}. This points to ${SIGN_KEYWORDS[sun.sign]} moving through ${HOUSE_TOPICS[sun.house]}. In Human Design terms, your Personality Sun activates Gate ${sun.hd.gate}.${sun.hd.line}.`,
+      text: `${formatPlacement(sun)} places your identity inside ${HOUSE_TOPICS[sun.house]}. The gift is ${SIGN_MEDICINE[sun.sign]}; the shadow is ${SIGN_SHADOWS[sun.sign]}. In Human Design, your Personality Sun activates Gate ${sun.hd.gate}.${sun.hd.line}, a theme of ${sunGateTheme}. This is the frequency people often feel from you before you explain yourself.`,
     },
     {
-      title: "Emotional Nature",
-      text: `Your Moon is at ${moon.degree} deg ${moon.sign} in house ${moon.house}, coloring your needs with ${SIGN_KEYWORDS[moon.sign]}. This is the part of the chart that describes what your nervous system keeps returning to when life gets quiet.`,
+      title: "Emotional Pattern",
+      text: `${formatPlacement(moon)} shows what your nervous system returns to when life gets quiet. Your emotional body seeks ${SIGN_KEYWORDS[moon.sign]}, especially around ${HOUSE_TOPICS[moon.house]}. The shadow can become ${SIGN_SHADOWS[moon.sign]}; the medicine is to ${SIGN_MEDICINE[moon.sign]}. Moon Gate ${moon.hd.gate}.${moon.hd.line} adds ${moonGateTheme} to your emotional field.`,
     },
     {
-      title: "Hidden Drive",
-      text: `Mars in ${mars.sign} and house ${mars.house} shows how you pursue desire, defend your energy, and move under pressure. The shadow expression can become reactive; the clean expression is focused action.`,
+      title: "Mind and Voice",
+      text: `${formatPlacement(mercury)} describes how you name reality, read signals, and protect yourself through thought. Your words carry ${SIGN_KEYWORDS[mercury.sign]}, but the shadow can become ${SIGN_SHADOWS[mercury.sign]}. When this placement is clean, your voice helps turn private perception into something useful, precise, and difficult to ignore.`,
     },
     {
-      title: "Relationship Mirror",
-      text: `Venus in ${venus.sign} reveals how you seek connection, attraction, and ease. Your chart asks for relationships that respect ${SIGN_KEYWORDS[venus.sign]} without turning that need into a performance.`,
+      title: "Desire and Relationship Mirror",
+      text: `${formatPlacement(venus)} describes attraction, pleasure, and the conditions that make connection feel safe. ${formatPlacement(mars)} shows pursuit, anger, and desire. Together they ask for relationships that respect both ${SIGN_KEYWORDS[venus.sign]} and ${SIGN_KEYWORDS[mars.sign]}. ${relationshipAspect ? describeAspect(relationshipAspect) : "No tight Venus-Mars or Moon-Venus aspect was found, so the sign and house placements carry more weight in this layer."}`,
     },
     {
-      title: "Karmic Pressure",
-      text: `Saturn in ${saturn.sign} and house ${saturn.house} marks a long-term lesson around ${HOUSE_TOPICS[saturn.house]}. The full report can unpack this as a growth pattern rather than a limitation.`,
-    },
-    {
-      title: "Strongest Aspect",
+      title: "Pressure Point",
       text: strongestAspect
-        ? `${strongestAspect.from} ${strongestAspect.type} ${strongestAspect.to} with a ${strongestAspect.orb} deg orb is the tightest major aspect found in this mini reading. It describes an inner dialogue that repeats until it becomes conscious.`
-        : "No tight major aspect appeared within the basic orb set, which makes sign, house, and Human Design gate emphasis especially important in this mini reading.",
+        ? `${describeAspect(strongestAspect)} This is one of the first tensions to watch because it repeats until it becomes conscious. It can show up as a recurring emotional script, a familiar relationship dynamic, or a place where your body reacts before your mind has finished understanding.`
+        : "No tight major aspect appeared within the basic orb set. That makes the Big Three, houses, and Human Design gates especially important in this mini-reading.",
+    },
+    {
+      title: "Karmic Lesson",
+      text: `${formatPlacement(saturn)} marks a long-term maturation path around ${HOUSE_TOPICS[saturn.house]}. Saturn's shadow can feel like delay, fear, or pressure to over-control, but its gift is earned authority. ${pressureAspect ? `The pressure aspect to watch is ${describeAspect(pressureAspect)}` : "The lesson is less about one dramatic aspect and more about repeating small choices until they become structure."}`,
+    },
+    {
+      title: "Human Design Layer",
+      text: `Your Personality Sun is Gate ${sun.hd.gate}.${sun.hd.line} (${sunGateTheme}); Personality Earth is Gate ${chart.humanDesign.personalityEarth.gate}.${chart.humanDesign.personalityEarth.line} (${gateTheme(chart.humanDesign.personalityEarth.gate)}). Your Design Sun is Gate ${designSun.gate}.${designSun.line} (${gateTheme(designSun.gate)}). Current focus sequence: ${buildFocusList(chart.planets)}.`,
+    },
+    {
+      title: "Shadow Integration Prompt",
+      text: `Pluto in ${pluto.sign} points to a deeper transformation pattern around power, honesty, and unconscious attachment. For the next 7 days, watch where ${SIGN_SHADOWS[sun.sign]} meets ${SIGN_SHADOWS[moon.sign]}. The integration question is: where am I repeating an old protection strategy when the cleaner move would be to ${SIGN_MEDICINE[sun.sign]}?`,
     },
   ];
 }
