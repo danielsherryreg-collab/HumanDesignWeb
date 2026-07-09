@@ -25,6 +25,7 @@ function loadEnvFile() {
 loadEnvFile();
 
 const port = Number(process.env.PORT || 4177);
+const host = process.env.HOST || "0.0.0.0";
 const resendApiKey = process.env.RESEND_API_KEY;
 const resendFrom = process.env.RESEND_FROM_EMAIL || "Shadow Chart <onboarding@resend.dev>";
 const sessionCookieName = "shadow_session";
@@ -566,8 +567,9 @@ const server = http.createServer((request, response) => {
 });
 
 if (require.main === module) {
-  server.listen(port, "127.0.0.1", () => {
-    console.log(`Shadow Chart preview: http://127.0.0.1:${port}`);
+  server.listen(port, host, () => {
+    const localUrl = host === "0.0.0.0" ? `http://127.0.0.1:${port}` : `http://${host}:${port}`;
+    console.log(`Shadow Chart preview: ${localUrl}`);
   });
 }
 
