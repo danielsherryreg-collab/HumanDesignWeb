@@ -510,7 +510,20 @@ async function handleLogin(request, response) {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const user = await db.get("SELECT * FROM users WHERE email = ?", [normalizedEmail]);
 
-  if (!user || !verifyPassword(String(password || ""), user)) {
+  if (!user) {
+    const pending = await db.get("SELECT email, expires_at FROM pending_registrations WHERE email = ?", [normalizedEmail]);
+    if (pending) {
+      sendJson(response, 403, {
+        error: "Finish email verification first. Your password is saved after you enter the verification code.",
+      });
+      return;
+    }
+
+    sendJson(response, 401, { error: "Email or password is incorrect." });
+    return;
+  }
+
+  if (!verifyPassword(String(password || ""), user)) {
     sendJson(response, 401, { error: "Email or password is incorrect." });
     return;
   }

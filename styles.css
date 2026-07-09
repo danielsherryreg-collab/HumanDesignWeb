@@ -769,6 +769,39 @@ ul {
   font-weight: 800;
 }
 
+.code-login-card {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  border: 1px solid rgba(185, 151, 91, 0.52);
+  border-radius: 8px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  cursor: pointer;
+  background:
+    linear-gradient(135deg, rgba(185, 151, 91, 0.16), rgba(180, 20, 26, 0.08)),
+    rgba(5, 5, 5, 0.38);
+  color: var(--text);
+  text-align: left;
+}
+
+.code-login-card:hover {
+  border-color: rgba(185, 151, 91, 0.82);
+  background:
+    linear-gradient(135deg, rgba(185, 151, 91, 0.22), rgba(180, 20, 26, 0.12)),
+    rgba(5, 5, 5, 0.48);
+}
+
+.code-login-card span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.code-login-card strong {
+  color: var(--gold);
+  font-size: 0.98rem;
+}
+
 @media (max-width: 900px) {
   .nav {
     align-items: flex-start;
