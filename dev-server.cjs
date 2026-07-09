@@ -4,6 +4,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
 const { calculateReading } = require("./services/chart-engine.cjs");
+const { REPORT_CURRENCY, REPORT_PRICE_CENTS, buildReportInput, createMockAiReport } = require("./services/ai-report-schema.cjs");
 
 const root = path.resolve(__dirname);
 const dataDir = path.join(root, "data");
@@ -148,6 +149,28 @@ function createDatabase() {
         );
         return result.rows[0].id;
       },
+      async insertFullReport(params) {
+        const result = await pool.query(
+          `
+            INSERT INTO full_reports
+              (user_id, reading_id, status, price_cents, currency, chart_json, prompt_json, report_json, report_html, updated_at, generated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+            RETURNING id
+          `,
+          [
+            params.userId,
+            params.readingId,
+            params.status,
+            params.priceCents,
+            params.currency,
+            params.chartJson,
+            params.promptJson,
+            params.reportJson,
+            params.reportHtml,
+          ],
+        );
+        return result.rows[0].id;
+      },
       async close() {
         await pool.end();
       },
@@ -244,6 +267,29 @@ function createDatabase() {
       const result = sqlite
         .prepare("INSERT INTO users (name, email, password_hash, password_salt) VALUES (?, ?, ?, ?)")
         .run(name, email, passwordHash, passwordSalt);
+      return result.lastInsertRowid;
+    },
+    async insertFullReport(params) {
+      const result = sqlite
+        .prepare(
+          `
+            INSERT INTO full_reports
+              (user_id, reading_id, status, price_cents, currency, chart_json, prompt_json, report_json, report_html, updated_at, generated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+          `,
+        )
+        .run(
+          params.userId,
+          params.readingId,
+          params.status,
+          params.priceCents,
+          params.currency,
+          params.chartJson,
+          params.promptJson,
+          params.reportJson,
+          params.reportHtml,
+          new Date().toISOString(),
+        );
       return result.lastInsertRowid;
     },
     async close() {
@@ -709,6 +755,66 @@ async function handleListReadings(request, response) {
   sendJson(response, 200, { readings });
 }
 
+function publicFullReport(row) {
+  return {
+    id: row.id,
+    readingId: row.reading_id,
+    status: row.status,
+    priceCents: row.price_cents,
+    currency: row.currency,
+    report: row.report_json ? JSON.parse(row.report_json) : null,
+    createdAt: row.created_at,
+    generatedAt: row.generated_at,
+  };
+}
+
+async function handleCreateFullReport(request, response) {
+  const user = await requireUser(request, response);
+  if (!user) return;
+
+  const { readingId } = await readJson(request);
+  const readingRow = await db.get("SELECT id, reading_json FROM readings WHERE id = ? AND user_id = ?", [readingId, user.id]);
+
+  if (!readingRow) {
+    sendJson(response, 404, { error: "Saved reading was not found." });
+    return;
+  }
+
+  const reading = JSON.parse(readingRow.reading_json);
+  const promptInput = buildReportInput({ user, reading });
+
+  // Future integration point: send promptInput to OpenAI structured JSON generation and validate against schema.
+  const report = createMockAiReport({ user, reading });
+  const reportHtml = "";
+
+  const reportId = await db.insertFullReport({
+    userId: user.id,
+    readingId: readingRow.id,
+    status: "ready",
+    priceCents: REPORT_PRICE_CENTS,
+    currency: REPORT_CURRENCY,
+    chartJson: JSON.stringify(reading.chart || {}),
+    promptJson: JSON.stringify(promptInput),
+    reportJson: JSON.stringify(report),
+    reportHtml,
+  });
+
+  // Future integration points: Stripe checkout before generation, PDF generation after report_json, Resend email delivery after ready.
+  const saved = await db.get("SELECT * FROM full_reports WHERE id = ? AND user_id = ?", [reportId, user.id]);
+  sendJson(response, 201, { fullReport: publicFullReport(saved) });
+}
+
+async function handleListFullReports(request, response) {
+  const user = await requireUser(request, response);
+  if (!user) return;
+
+  const reports = (
+    await db.all("SELECT * FROM full_reports WHERE user_id = ? ORDER BY id DESC", [user.id])
+  ).map(publicFullReport);
+
+  sendJson(response, 200, { fullReports: reports });
+}
+
 async function handleCalculateReading(request, response) {
   try {
     const { birthDate, birthTime, birthPlace, firstName } = await readJson(request);
@@ -856,6 +962,12 @@ async function handleRequest(request, response) {
   if (pathname === "/api/readings") {
     if (request.method === "GET") return handleListReadings(request, response);
     if (request.method === "POST") return handleSaveReading(request, response);
+    return sendMethodNotAllowed(response);
+  }
+
+  if (pathname === "/api/full-reports") {
+    if (request.method === "GET") return handleListFullReports(request, response);
+    if (request.method === "POST") return handleCreateFullReport(request, response);
     return sendMethodNotAllowed(response);
   }
 

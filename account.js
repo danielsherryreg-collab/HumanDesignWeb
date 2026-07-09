@@ -9,6 +9,7 @@ const cabinetLogout = document.querySelector("#cabinet-logout");
 const state = {
   user: null,
   readings: [],
+  fullReports: [],
   selectedId: null,
 };
 
@@ -110,6 +111,120 @@ function renderChartSnapshot(reading) {
   `;
 }
 
+function findFullReport(reading) {
+  return state.fullReports.find((report) => String(report.readingId) === String(reading.id));
+}
+
+function renderRaveChartRenderer(report) {
+  const visualData = report?.report?.humanDesign?.raveChartVisualData;
+  if (!visualData) return "";
+
+  const centersById = Object.fromEntries((visualData.centers || []).map((center) => [center.id, center]));
+  const channels = (visualData.channels || [])
+    .map((channel) => {
+      const from = centersById[channel.fromCenter];
+      const to = centersById[channel.toCenter];
+      if (!from || !to) return "";
+      return `<line x1="${from.position.x}" y1="${from.position.y}" x2="${to.position.x}" y2="${to.position.y}" class="${channel.active ? "is-active" : ""}" />`;
+    })
+    .join("");
+
+  const centers = (visualData.centers || [])
+    .map(
+      (center) => `
+        <g class="rave-center ${center.defined ? "is-defined" : ""}">
+          <circle cx="${center.position.x}" cy="${center.position.y}" r="5.8" style="--center-color: ${escapeHtml(center.color)}"></circle>
+          <text x="${center.position.x}" y="${center.position.y + 10}">${escapeHtml(center.label)}</text>
+        </g>
+      `,
+    )
+    .join("");
+
+  const gates = (visualData.gates || [])
+    .map((gate, index) => {
+      const center = centersById[gate.center] || visualData.centers[index % visualData.centers.length];
+      if (!center) return "";
+      const angle = (index / Math.max(1, visualData.gates.length)) * Math.PI * 2;
+      const x = center.position.x + Math.cos(angle) * 8;
+      const y = center.position.y + Math.sin(angle) * 8;
+      return `
+        <g class="rave-gate">
+          <circle cx="${x}" cy="${y}" r="2.8"></circle>
+          <text x="${x}" y="${y + 1}">${escapeHtml(gate.label)}</text>
+        </g>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="rave-chart-panel">
+      <div>
+        <p class="panel-kicker">Rave chart renderer</p>
+        <h3>Visual BodyGraph Layer</h3>
+        <p>This preview is rendered by the website from structured JSON, not by an AI image.</p>
+      </div>
+      <svg class="rave-chart" viewBox="0 0 100 100" role="img" aria-label="Human Design rave chart preview">
+        <defs>
+          <filter id="raveGlow">
+            <feGaussianBlur stdDeviation="2.6" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        <g class="rave-channels">${channels}</g>
+        <g>${centers}</g>
+        <g>${gates}</g>
+      </svg>
+    </section>
+  `;
+}
+
+function renderStructuredFullReport(report) {
+  if (!report?.report) return "";
+
+  const fullSections = report.report.fullReport?.sections || [];
+  const uiCards = report.report.uiCards || [];
+
+  return `
+    <section class="structured-report">
+      <div class="structured-report__header">
+        <p class="panel-kicker">Structured AI report</p>
+        <h3>${escapeHtml(report.report.identity?.title || "Full Report Draft")}</h3>
+        <p>${escapeHtml(report.report.identity?.oneSentenceSummary || "")}</p>
+      </div>
+      <div class="structured-ui-cards">
+        ${uiCards
+          .map(
+            (card) => `
+              <article>
+                <span>${escapeHtml(card.eyebrow)}</span>
+                <strong>${escapeHtml(card.title)}</strong>
+                <p>${escapeHtml(card.body)}</p>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+      ${renderRaveChartRenderer(report)}
+      <div class="structured-sections">
+        ${fullSections
+          .map(
+            (section) => `
+              <article>
+                <span>${escapeHtml(section.id)}</span>
+                <h4>${escapeHtml(section.title)}</h4>
+                <p>${escapeHtml(section.body)}</p>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderReadingDetail(reading) {
   if (!reading) {
     cabinetDetail.innerHTML = `
@@ -123,6 +238,7 @@ function renderReadingDetail(reading) {
   }
 
   const cards = Array.isArray(reading.cards) ? reading.cards : [];
+  const fullReport = findFullReport(reading);
 
   cabinetDetail.innerHTML = `
     <div class="cabinet-detail-header">
@@ -178,8 +294,12 @@ function renderReadingDetail(reading) {
           and practical reflection prompts. Launch price: $19.
         </p>
       </div>
-      <a class="button button--primary" href="index.html#full-report">Get Full Birth Chart Report</a>
+      <button class="button button--primary" type="button" data-create-full-report="${escapeHtml(reading.id)}">
+        ${fullReport ? "Refresh Structured Report" : "Generate Full Report Draft"}
+      </button>
     </div>
+
+    ${renderStructuredFullReport(fullReport)}
   `;
 }
 
@@ -209,8 +329,13 @@ async function loadCabinet() {
       method: "GET",
       headers: {},
     });
+    const { fullReports } = await api("/api/full-reports", {
+      method: "GET",
+      headers: {},
+    });
 
     state.readings = readings;
+    state.fullReports = fullReports;
     state.selectedId = readings[0] ? readings[0].id : null;
     cabinetIntro.textContent = `${user.email} - ${readings.length} saved reading${readings.length === 1 ? "" : "s"}.`;
     cabinetLogin.classList.add("is-hidden");
@@ -229,6 +354,27 @@ cabinetList.addEventListener("click", (event) => {
   const button = event.target.closest("[data-reading-id]");
   if (!button) return;
   selectReading(button.dataset.readingId);
+});
+
+cabinetDetail.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-create-full-report]");
+  if (!button) return;
+
+  try {
+    button.disabled = true;
+    cabinetStatus.textContent = "Generating structured report draft...";
+    const { fullReport } = await api("/api/full-reports", {
+      method: "POST",
+      body: JSON.stringify({ readingId: button.dataset.createFullReport }),
+    });
+    state.fullReports = [fullReport, ...state.fullReports.filter((report) => String(report.id) !== String(fullReport.id))];
+    selectReading(state.selectedId);
+    cabinetStatus.textContent = "Structured report draft is ready.";
+  } catch (error) {
+    cabinetStatus.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
 });
 
 cabinetLogout.addEventListener("click", async () => {

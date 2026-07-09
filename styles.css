@@ -771,6 +771,125 @@ ul {
   margin-bottom: 0;
 }
 
+.structured-report,
+.rave-chart-panel {
+  border: 1px solid rgba(239, 232, 218, 0.13);
+  border-radius: 8px;
+  margin-top: 18px;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 80% 10%, rgba(108, 75, 216, 0.16), transparent 28rem),
+    rgba(5, 5, 5, 0.42);
+}
+
+.structured-report__header {
+  max-width: 760px;
+  margin-bottom: 18px;
+}
+
+.structured-report h3,
+.rave-chart-panel h3 {
+  font-size: 1.7rem;
+}
+
+.structured-ui-cards,
+.structured-sections {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.structured-sections {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.structured-ui-cards article,
+.structured-sections article {
+  border: 1px solid rgba(239, 232, 218, 0.11);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(16, 14, 15, 0.68);
+}
+
+.structured-ui-cards span,
+.structured-sections span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--gold);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.structured-ui-cards strong,
+.structured-sections h4 {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--text);
+  font-family: Cinzel, Georgia, serif;
+}
+
+.rave-chart-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(280px, 420px);
+  gap: 18px;
+  align-items: center;
+}
+
+.rave-chart {
+  width: 100%;
+  min-height: 360px;
+  border: 1px solid rgba(239, 232, 218, 0.12);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at center, rgba(185, 151, 91, 0.08), transparent 34%),
+    #070607;
+}
+
+.rave-channels line {
+  stroke: rgba(239, 232, 218, 0.2);
+  stroke-width: 1.4;
+}
+
+.rave-channels line.is-active {
+  stroke: #d8b46a;
+  stroke-width: 2;
+  filter: url("#raveGlow");
+}
+
+.rave-center circle {
+  fill: #1c1a22;
+  stroke: rgba(239, 232, 218, 0.34);
+  stroke-width: 0.6;
+}
+
+.rave-center.is-defined circle {
+  fill: var(--center-color);
+  stroke: rgba(255, 245, 236, 0.72);
+  filter: url("#raveGlow");
+}
+
+.rave-center text {
+  fill: rgba(239, 232, 218, 0.7);
+  font-size: 2.2px;
+  text-anchor: middle;
+}
+
+.rave-gate circle {
+  fill: #b9975b;
+  stroke: #050505;
+  stroke-width: 0.5;
+}
+
+.rave-gate text {
+  fill: #050505;
+  font-size: 1.7px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
 .cabinet-status {
   margin-top: 18px;
 }
@@ -873,7 +992,10 @@ ul {
   .birth-summary,
   .chart-snapshot,
   .cabinet-reading-cards,
-  .full-report-offer {
+  .full-report-offer,
+  .structured-ui-cards,
+  .structured-sections,
+  .rave-chart-panel {
     grid-template-columns: 1fr;
   }
 
