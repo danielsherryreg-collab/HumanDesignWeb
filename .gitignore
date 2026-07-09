@@ -2,5 +2,6 @@
 data/*.sqlite
 data/*.sqlite-*
 node_modules/
+.npm-cache/
 npm-debug.log*
 .DS_Store

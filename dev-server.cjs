@@ -29,50 +29,9 @@ const host = process.env.HOST || "0.0.0.0";
 const resendApiKey = process.env.RESEND_API_KEY;
 const resendFrom = process.env.RESEND_FROM_EMAIL || "Shadow Chart <onboarding@resend.dev>";
 const sessionCookieName = "shadow_session";
+const usePostgres = Boolean(process.env.DATABASE_URL);
 
 fs.mkdirSync(dataDir, { recursive: true });
-
-const dbPath = process.env.SHADOW_DB_PATH || path.join(dataDir, "shadow-chart.sqlite");
-const db = new DatabaseSync(dbPath);
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    password_salt TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS sessions (
-    token TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at TEXT NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS readings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    reading_json TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS pending_registrations (
-    email TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
-    password_salt TEXT NOT NULL,
-    code_hash TEXT NOT NULL,
-    code_salt TEXT NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at TEXT NOT NULL
-  );
-`);
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -80,6 +39,159 @@ const types = {
   ".js": "text/javascript; charset=utf-8",
   ".png": "image/png",
 };
+
+function toPostgresSql(sql) {
+  let index = 0;
+  return sql.replace(/\?/g, () => `$${++index}`);
+}
+
+function normalizeRow(row) {
+  if (!row) return null;
+  return Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [key, value instanceof Date ? value.toISOString() : value]),
+  );
+}
+
+function createDatabase() {
+  if (usePostgres) {
+    const { Pool } = require("pg");
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.PGSSL === "false" ? false : { rejectUnauthorized: false },
+    });
+
+    return {
+      kind: "postgres",
+      async init() {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS users (
+            id BIGSERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            password_salt TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+
+          CREATE TABLE IF NOT EXISTS sessions (
+            token TEXT PRIMARY KEY,
+            user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            expires_at TIMESTAMPTZ NOT NULL
+          );
+
+          CREATE TABLE IF NOT EXISTS readings (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            reading_json TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+
+          CREATE TABLE IF NOT EXISTS pending_registrations (
+            email TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            password_hash TEXT NOT NULL,
+            password_salt TEXT NOT NULL,
+            code_hash TEXT NOT NULL,
+            code_salt TEXT NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            expires_at TIMESTAMPTZ NOT NULL
+          );
+        `);
+      },
+      async get(sql, params = []) {
+        const result = await pool.query(toPostgresSql(sql), params);
+        return normalizeRow(result.rows[0]);
+      },
+      async all(sql, params = []) {
+        const result = await pool.query(toPostgresSql(sql), params);
+        return result.rows.map(normalizeRow);
+      },
+      async run(sql, params = []) {
+        await pool.query(toPostgresSql(sql), params);
+      },
+      async insertUser(name, email, passwordHash, passwordSalt) {
+        const result = await pool.query(
+          "INSERT INTO users (name, email, password_hash, password_salt) VALUES ($1, $2, $3, $4) RETURNING id",
+          [name, email, passwordHash, passwordSalt],
+        );
+        return result.rows[0].id;
+      },
+      async close() {
+        await pool.end();
+      },
+    };
+  }
+
+  const dbPath = process.env.SHADOW_DB_PATH || path.join(dataDir, "shadow-chart.sqlite");
+  const sqlite = new DatabaseSync(dbPath);
+
+  return {
+    kind: "sqlite",
+    async init() {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          email TEXT NOT NULL UNIQUE,
+          password_hash TEXT NOT NULL,
+          password_salt TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sessions (
+          token TEXT PRIMARY KEY,
+          user_id INTEGER NOT NULL,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          expires_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS readings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          reading_json TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS pending_registrations (
+          email TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          password_hash TEXT NOT NULL,
+          password_salt TEXT NOT NULL,
+          code_hash TEXT NOT NULL,
+          code_salt TEXT NOT NULL,
+          attempts INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          expires_at TEXT NOT NULL
+        );
+      `);
+    },
+    async get(sql, params = []) {
+      return normalizeRow(sqlite.prepare(sql).get(...params));
+    },
+    async all(sql, params = []) {
+      return sqlite.prepare(sql).all(...params).map(normalizeRow);
+    },
+    async run(sql, params = []) {
+      sqlite.prepare(sql).run(...params);
+    },
+    async insertUser(name, email, passwordHash, passwordSalt) {
+      const result = sqlite
+        .prepare("INSERT INTO users (name, email, password_hash, password_salt) VALUES (?, ?, ?, ?)")
+        .run(name, email, passwordHash, passwordSalt);
+      return result.lastInsertRowid;
+    },
+    async close() {
+      sqlite.close();
+    },
+  };
+}
+
+const db = createDatabase();
+const dbReady = db.init();
 
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
@@ -170,24 +282,23 @@ function publicUser(user) {
   };
 }
 
-function getCurrentUser(request) {
+async function getCurrentUser(request) {
   const token = parseCookies(request)[sessionCookieName];
   if (!token) return null;
 
-  return db
-    .prepare(
-      `
-        SELECT users.id, users.name, users.email, users.created_at
-        FROM sessions
-        JOIN users ON users.id = sessions.user_id
-        WHERE sessions.token = ? AND sessions.expires_at > datetime('now')
-      `,
-    )
-    .get(token);
+  return db.get(
+    `
+      SELECT users.id, users.name, users.email, users.created_at
+      FROM sessions
+      JOIN users ON users.id = sessions.user_id
+      WHERE sessions.token = ? AND sessions.expires_at > ?
+    `,
+    [token, new Date().toISOString()],
+  );
 }
 
-function requireUser(request, response) {
-  const user = getCurrentUser(request);
+async function requireUser(request, response) {
+  const user = await getCurrentUser(request);
   if (!user) {
     sendJson(response, 401, { error: "Please log in first." });
     return null;
@@ -195,10 +306,10 @@ function requireUser(request, response) {
   return user;
 }
 
-function createSession(response, userId) {
+async function createSession(response, userId) {
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString();
-  db.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)").run(token, userId, expiresAt);
+  await db.run("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)", [token, userId, expiresAt]);
   setSessionCookie(response, token, expiresAt);
 }
 
@@ -263,7 +374,7 @@ async function handleRegister(request, response) {
     return;
   }
 
-  const existingUser = db.prepare("SELECT id FROM users WHERE email = ?").get(normalizedEmail);
+  const existingUser = await db.get("SELECT id FROM users WHERE email = ?", [normalizedEmail]);
   if (existingUser) {
     sendJson(response, 409, { error: "An account with this email already exists." });
     return;
@@ -273,8 +384,9 @@ async function handleRegister(request, response) {
   const code = String(crypto.randomInt(100000, 1000000));
   const { hash: codeHash, salt: codeSalt } = hashCode(code);
   const expiresAt = new Date(Date.now() + 1000 * 60 * 15).toISOString();
+  const displayName = String(name || "Stargazer").trim() || "Stargazer";
 
-  db.prepare(
+  await db.run(
     `
       INSERT INTO pending_registrations
         (email, name, password_hash, password_salt, code_hash, code_salt, attempts, expires_at)
@@ -289,7 +401,8 @@ async function handleRegister(request, response) {
         created_at = CURRENT_TIMESTAMP,
         expires_at = excluded.expires_at
     `,
-  ).run(normalizedEmail, String(name || "Stargazer").trim() || "Stargazer", hash, salt, codeHash, codeSalt, expiresAt);
+    [normalizedEmail, displayName, hash, salt, codeHash, codeSalt, expiresAt],
+  );
 
   try {
     await sendEmail({
@@ -313,7 +426,7 @@ async function handleVerifyRegistration(request, response) {
   const { email, code } = await readJson(request);
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const normalizedCode = String(code || "").replace(/\D/g, "");
-  const pending = db.prepare("SELECT * FROM pending_registrations WHERE email = ?").get(normalizedEmail);
+  const pending = await db.get("SELECT * FROM pending_registrations WHERE email = ?", [normalizedEmail]);
 
   if (!pending) {
     sendJson(response, 404, { error: "Verification code was not found. Please create an account again." });
@@ -321,70 +434,68 @@ async function handleVerifyRegistration(request, response) {
   }
 
   if (new Date(pending.expires_at).getTime() < Date.now()) {
-    db.prepare("DELETE FROM pending_registrations WHERE email = ?").run(normalizedEmail);
+    await db.run("DELETE FROM pending_registrations WHERE email = ?", [normalizedEmail]);
     sendJson(response, 410, { error: "Verification code expired. Please create an account again." });
     return;
   }
 
   if (pending.attempts >= 5) {
-    db.prepare("DELETE FROM pending_registrations WHERE email = ?").run(normalizedEmail);
+    await db.run("DELETE FROM pending_registrations WHERE email = ?", [normalizedEmail]);
     sendJson(response, 429, { error: "Too many incorrect attempts. Please create an account again." });
     return;
   }
 
   const { hash } = hashCode(normalizedCode, pending.code_salt);
   if (hash !== pending.code_hash) {
-    db.prepare("UPDATE pending_registrations SET attempts = attempts + 1 WHERE email = ?").run(normalizedEmail);
+    await db.run("UPDATE pending_registrations SET attempts = attempts + 1 WHERE email = ?", [normalizedEmail]);
     sendJson(response, 401, { error: "Verification code is incorrect." });
     return;
   }
 
-  const existingUser = db.prepare("SELECT id FROM users WHERE email = ?").get(normalizedEmail);
+  const existingUser = await db.get("SELECT id FROM users WHERE email = ?", [normalizedEmail]);
   if (existingUser) {
-    db.prepare("DELETE FROM pending_registrations WHERE email = ?").run(normalizedEmail);
+    await db.run("DELETE FROM pending_registrations WHERE email = ?", [normalizedEmail]);
     sendJson(response, 409, { error: "An account with this email already exists." });
     return;
   }
 
-  const result = db
-    .prepare("INSERT INTO users (name, email, password_hash, password_salt) VALUES (?, ?, ?, ?)")
-    .run(pending.name, pending.email, pending.password_hash, pending.password_salt);
-  db.prepare("DELETE FROM pending_registrations WHERE email = ?").run(normalizedEmail);
+  const userId = await db.insertUser(pending.name, pending.email, pending.password_hash, pending.password_salt);
+  await db.run("DELETE FROM pending_registrations WHERE email = ?", [normalizedEmail]);
 
-  const user = db.prepare("SELECT id, name, email, created_at FROM users WHERE id = ?").get(result.lastInsertRowid);
-  createSession(response, user.id);
+  const user = await db.get("SELECT id, name, email, created_at FROM users WHERE id = ?", [userId]);
+  await createSession(response, user.id);
   sendJson(response, 201, { user: publicUser(user) });
 }
 
 async function handleLogin(request, response) {
   const { email, password } = await readJson(request);
   const normalizedEmail = String(email || "").trim().toLowerCase();
-  const user = db.prepare("SELECT * FROM users WHERE email = ?").get(normalizedEmail);
+  const user = await db.get("SELECT * FROM users WHERE email = ?", [normalizedEmail]);
 
   if (!user || !verifyPassword(String(password || ""), user)) {
     sendJson(response, 401, { error: "Email or password is incorrect." });
     return;
   }
 
-  createSession(response, user.id);
+  await createSession(response, user.id);
   sendJson(response, 200, {
     user: publicUser(user),
   });
 }
 
-function handleLogout(request, response) {
+async function handleLogout(request, response) {
   const token = parseCookies(request)[sessionCookieName];
-  if (token) db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
+  if (token) await db.run("DELETE FROM sessions WHERE token = ?", [token]);
   clearSessionCookie(response);
   sendJson(response, 200, { ok: true });
 }
 
-function handleMe(request, response) {
-  sendJson(response, 200, { user: publicUser(getCurrentUser(request)) });
+async function handleMe(request, response) {
+  sendJson(response, 200, { user: publicUser(await getCurrentUser(request)) });
 }
 
 async function handleSaveReading(request, response) {
-  const user = requireUser(request, response);
+  const user = await requireUser(request, response);
   if (!user) return;
 
   const { reading } = await readJson(request);
@@ -393,22 +504,21 @@ async function handleSaveReading(request, response) {
     return;
   }
 
-  db.prepare("INSERT INTO readings (user_id, reading_json) VALUES (?, ?)").run(user.id, JSON.stringify(reading));
+  await db.run("INSERT INTO readings (user_id, reading_json) VALUES (?, ?)", [user.id, JSON.stringify(reading)]);
   sendJson(response, 201, { ok: true });
 }
 
-function handleListReadings(request, response) {
-  const user = requireUser(request, response);
+async function handleListReadings(request, response) {
+  const user = await requireUser(request, response);
   if (!user) return;
 
-  const readings = db
-    .prepare("SELECT id, reading_json, created_at FROM readings WHERE user_id = ? ORDER BY id DESC")
-    .all(user.id)
-    .map((row) => ({
-      id: row.id,
-      createdAt: row.created_at,
-      ...JSON.parse(row.reading_json),
-    }));
+  const readings = (
+    await db.all("SELECT id, reading_json, created_at FROM readings WHERE user_id = ? ORDER BY id DESC", [user.id])
+  ).map((row) => ({
+    id: row.id,
+    createdAt: row.created_at,
+    ...JSON.parse(row.reading_json),
+  }));
 
   sendJson(response, 200, { readings });
 }
@@ -495,50 +605,48 @@ async function sendMiniReadingEmail(request, response) {
   }
 }
 
-const server = http.createServer((request, response) => {
+async function handleRequest(request, response) {
+  await dbReady;
   const pathname = request.url.split("?")[0];
 
   if (pathname === "/api/auth/register") {
     if (request.method !== "POST") return sendMethodNotAllowed(response);
-    handleRegister(request, response).catch((error) => sendJson(response, 500, { error: error.message }));
+    await handleRegister(request, response);
     return;
   }
 
   if (pathname === "/api/auth/verify") {
     if (request.method !== "POST") return sendMethodNotAllowed(response);
-    handleVerifyRegistration(request, response).catch((error) => sendJson(response, 500, { error: error.message }));
+    await handleVerifyRegistration(request, response);
     return;
   }
 
   if (pathname === "/api/auth/login") {
     if (request.method !== "POST") return sendMethodNotAllowed(response);
-    handleLogin(request, response).catch((error) => sendJson(response, 500, { error: error.message }));
+    await handleLogin(request, response);
     return;
   }
 
   if (pathname === "/api/auth/logout") {
     if (request.method !== "POST") return sendMethodNotAllowed(response);
-    handleLogout(request, response);
+    await handleLogout(request, response);
     return;
   }
 
   if (pathname === "/api/me") {
     if (request.method !== "GET") return sendMethodNotAllowed(response);
-    handleMe(request, response);
+    await handleMe(request, response);
     return;
   }
 
   if (pathname === "/api/readings") {
     if (request.method === "GET") return handleListReadings(request, response);
-    if (request.method === "POST") {
-      handleSaveReading(request, response).catch((error) => sendJson(response, 500, { error: error.message }));
-      return;
-    }
+    if (request.method === "POST") return handleSaveReading(request, response);
     return sendMethodNotAllowed(response);
   }
 
-  if (request.method === "POST" && request.url === "/api/send-mini-reading") {
-    sendMiniReadingEmail(request, response);
+  if (request.method === "POST" && pathname === "/api/send-mini-reading") {
+    await sendMiniReadingEmail(request, response);
     return;
   }
 
@@ -564,16 +672,31 @@ const server = http.createServer((request, response) => {
     });
     response.end(data);
   });
+}
+
+const server = http.createServer((request, response) => {
+  handleRequest(request, response).catch((error) => {
+    sendJson(response, 500, { error: error.message || "Server error." });
+  });
 });
 
 if (require.main === module) {
-  server.listen(port, host, () => {
-    const localUrl = host === "0.0.0.0" ? `http://127.0.0.1:${port}` : `http://${host}:${port}`;
-    console.log(`Shadow Chart preview: ${localUrl}`);
-  });
+  dbReady
+    .then(() => {
+      server.listen(port, host, () => {
+        const localUrl = host === "0.0.0.0" ? `http://127.0.0.1:${port}` : `http://${host}:${port}`;
+        console.log(`Shadow Chart preview: ${localUrl}`);
+        console.log(`Database: ${db.kind}`);
+      });
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
 }
 
 module.exports = {
   db,
+  dbReady,
   server,
 };

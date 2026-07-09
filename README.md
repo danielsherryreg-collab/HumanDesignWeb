@@ -4,18 +4,20 @@
 
 The local backend is `dev-server.cjs`.
 
-It automatically creates a SQLite database here:
+Locally, if `DATABASE_URL` is not set, it automatically creates a SQLite database here:
 
 ```text
 data/shadow-chart.sqlite
 ```
+
+On Railway, connect a PostgreSQL database to the service. Railway will provide `DATABASE_URL`, and the app will create the same tables in PostgreSQL automatically.
 
 The backend handles:
 
 - account registration with a 6-digit email verification code
 - login/logout with an HttpOnly session cookie
 - password hashing with a unique salt
-- saved mini readings in the database
+- saved mini readings in PostgreSQL on Railway or SQLite locally
 - Resend email delivery through a server-side API endpoint
 
 ## Local run
@@ -51,6 +53,8 @@ On Railway, set only:
 RESEND_API_KEY=...
 RESEND_FROM_EMAIL=Shadow Chart <onboarding@resend.dev>
 ```
+
+Then add a PostgreSQL database in Railway and connect it to this service so `DATABASE_URL` appears in Variables.
 
 Do not set `HOST` on Railway. The server defaults to `0.0.0.0`, which Railway needs for public traffic.
 
