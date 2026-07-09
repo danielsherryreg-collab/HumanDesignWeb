@@ -167,6 +167,19 @@ function renderReadingDetail(reading) {
         )
         .join("")}
     </div>
+
+    <div class="full-report-offer">
+      <div>
+        <p class="panel-kicker">Full report</p>
+        <h3>Go deeper with the complete birth chart report</h3>
+        <p>
+          Your mini reading is the first layer. The full report will expand this into
+          shadow patterns, relationship dynamics, career energy, Human Design gates,
+          and practical reflection prompts.
+        </p>
+      </div>
+      <a class="button button--primary" href="index.html#full-report">Get Full Birth Chart Report</a>
+    </div>
   `;
 }
 

@@ -136,13 +136,18 @@ a {
 }
 
 .nav-button {
+  display: inline-flex;
   min-height: 38px;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(239, 232, 218, 0.16);
   border-radius: 999px;
   padding: 0 14px;
   background: rgba(5, 5, 5, 0.42);
   font-size: 0.82rem;
   font-weight: 800;
+  line-height: 1;
+  text-align: center;
 }
 
 .nav-button--filled {
@@ -334,6 +339,9 @@ input:focus {
   padding: 0 20px;
   cursor: pointer;
   font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+  white-space: normal;
 }
 
 .button--primary {
@@ -558,7 +566,7 @@ ul {
 .cabinet-shell {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 28px clamp(18px, 4vw, 64px) 72px;
+  padding: 28px clamp(18px, 4vw, 64px) 48px;
 }
 
 .cabinet-nav {
@@ -567,11 +575,11 @@ ul {
 
 .cabinet-hero {
   max-width: 860px;
-  padding: 76px 0 36px;
+  padding: 56px 0 28px;
 }
 
 .cabinet-hero h1 {
-  font-size: clamp(3rem, 7vw, 6.2rem);
+  font-size: clamp(3rem, 6vw, 5.4rem);
 }
 
 .cabinet-hero p:not(.eyebrow) {
@@ -589,7 +597,7 @@ ul {
   display: grid;
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .cabinet-list-panel,
@@ -605,21 +613,31 @@ ul {
 .cabinet-list-panel {
   position: sticky;
   top: 18px;
+  display: flex;
+  min-height: 360px;
+  flex-direction: column;
   padding: 20px;
 }
 
 .cabinet-panel-heading {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 .cabinet-panel-heading h2,
 .cabinet-detail h2 {
-  font-size: clamp(1.8rem, 3vw, 3rem);
+  font-size: clamp(1.8rem, 2.7vw, 2.65rem);
 }
 
 .cabinet-list {
   display: grid;
+  align-content: start;
   gap: 10px;
+  flex: 1;
+}
+
+.cabinet-list .button {
+  width: 100%;
+  margin-top: 10px;
 }
 
 .cabinet-reading-item {
@@ -652,7 +670,7 @@ ul {
 }
 
 .cabinet-detail {
-  min-height: 520px;
+  min-height: 360px;
   padding: 24px;
 }
 
@@ -666,7 +684,7 @@ ul {
 
 .cabinet-empty {
   display: grid;
-  min-height: 420px;
+  min-height: 300px;
   align-content: center;
 }
 
@@ -718,6 +736,28 @@ ul {
 
 .cabinet-reading-cards .reading-card {
   min-height: 220px;
+}
+
+.full-report-offer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  gap: 18px;
+  align-items: center;
+  border: 1px solid rgba(185, 151, 91, 0.34);
+  border-radius: 8px;
+  margin-top: 18px;
+  padding: 22px;
+  background:
+    linear-gradient(135deg, rgba(185, 151, 91, 0.12), rgba(180, 20, 26, 0.1)),
+    rgba(5, 5, 5, 0.38);
+}
+
+.full-report-offer h3 {
+  font-size: 1.55rem;
+}
+
+.full-report-offer p:not(.panel-kicker) {
+  margin-bottom: 0;
 }
 
 .cabinet-status {
@@ -821,7 +861,8 @@ ul {
   .cabinet-detail-header,
   .birth-summary,
   .chart-snapshot,
-  .cabinet-reading-cards {
+  .cabinet-reading-cards,
+  .full-report-offer {
     grid-template-columns: 1fr;
   }
 
@@ -890,6 +931,34 @@ ul {
 
   .privacy-note {
     margin-bottom: 10px;
+  }
+
+  .cabinet-shell {
+    padding-top: 20px;
+    padding-bottom: 34px;
+  }
+
+  .cabinet-hero {
+    padding: 42px 0 22px;
+  }
+
+  .cabinet-hero h1 {
+    font-size: clamp(2.8rem, 5.2vw, 4.8rem);
+  }
+
+  .cabinet-hero p:not(.eyebrow) {
+    margin-top: 12px;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .cabinet-list-panel,
+  .cabinet-detail {
+    min-height: 320px;
+  }
+
+  .cabinet-empty {
+    min-height: 260px;
   }
 }
 

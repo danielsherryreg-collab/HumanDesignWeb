@@ -8,6 +8,7 @@ const miniDelivery = document.querySelector("#mini-delivery");
 const readingStatus = document.querySelector("#reading-status");
 const deliveryStatus = document.querySelector("#delivery-status");
 const saveToAccountButton = document.querySelector("#save-to-account");
+const openReadingCabinetButton = document.querySelector("#open-reading-cabinet");
 const emailReportForm = document.querySelector("#email-report-form");
 const reportEmailInput = document.querySelector("#report-email");
 const authModal = document.querySelector("#auth-modal");
@@ -353,6 +354,7 @@ function redirectAfterAuth() {
 async function saveReadingToAccount() {
   if (!state.currentReading) {
     setStatus(deliveryStatus, "Generate your mini reading first.");
+    setStatus(readingStatus, "Generate your mini reading first.");
     return;
   }
 
@@ -360,6 +362,7 @@ async function saveReadingToAccount() {
     state.pendingSaveAfterAuth = true;
     openAuthModal("register");
     setStatus(authStatus, "Create an account to save this mini reading.");
+    setStatus(readingStatus, "Create an account or log in to open your mini reading in the cabinet.");
     return;
   }
 
@@ -373,10 +376,22 @@ async function saveReadingToAccount() {
     state.pendingSaveAfterAuth = false;
     await loadAccount();
     setStatus(deliveryStatus, "Saved to your personal cabinet.");
+    setStatus(readingStatus, "Saved to your personal cabinet.");
     window.location.href = "account.html";
   } catch (error) {
     setStatus(deliveryStatus, error.message);
+    setStatus(readingStatus, error.message);
   }
+}
+
+async function openMiniReadingInCabinet() {
+  if (!state.currentReading) {
+    setStatus(readingStatus, "Generate your mini reading first.");
+    return;
+  }
+
+  setStatus(readingStatus, "Saving your mini reading...");
+  await saveReadingToAccount();
 }
 
 async function sendReadingToEmail(email) {
@@ -421,7 +436,6 @@ async function revealMiniReading() {
     skipNameButton.disabled = true;
     await buildMiniReading();
     setStep("mini");
-    document.querySelector("#reading").scrollIntoView({ behavior: "smooth" });
   } catch (error) {
     setStatus(readingStatus, error.message);
   } finally {
@@ -448,6 +462,7 @@ checkoutButton.addEventListener("click", () => {
 });
 
 saveToAccountButton.addEventListener("click", saveReadingToAccount);
+openReadingCabinetButton.addEventListener("click", openMiniReadingInCabinet);
 
 emailReportForm.addEventListener("submit", (event) => {
   event.preventDefault();
