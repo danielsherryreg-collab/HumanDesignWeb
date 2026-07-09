@@ -20,6 +20,7 @@
 
 html {
   scroll-behavior: smooth;
+  scroll-snap-type: y mandatory;
 }
 
 body {
@@ -44,6 +45,16 @@ a {
 
 .site-shell {
   overflow: hidden;
+}
+
+.hero,
+.reading-section,
+.account-section,
+.full-report,
+.checkout-shell {
+  min-height: 100svh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 
 .hero {
@@ -493,7 +504,7 @@ ul {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
-  padding-top: 34px;
+  align-items: center;
 }
 
 .delivery-preview {

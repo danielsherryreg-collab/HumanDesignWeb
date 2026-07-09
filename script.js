@@ -557,6 +557,76 @@ document.querySelectorAll("[data-scroll-target]").forEach((button) => {
   });
 });
 
+const frameSections = Array.from(
+  document.querySelectorAll(".hero, .reading-section, .account-section, .full-report, .checkout-shell"),
+);
+let lastFrameScrollAt = 0;
+
+function shouldIgnoreFrameNavigation(event) {
+  const target = event.target;
+  const isTyping =
+    target.closest("input, textarea, select, button, a") ||
+    target.isContentEditable ||
+    document.activeElement?.matches("input, textarea, select");
+  const modalIsOpen = !authModal.classList.contains("is-hidden");
+  return event.ctrlKey || event.metaKey || modalIsOpen || isTyping;
+}
+
+function getCurrentFrameIndex() {
+  const viewportMiddle = window.innerHeight / 2;
+  let closestIndex = 0;
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  frameSections.forEach((section, index) => {
+    const rect = section.getBoundingClientRect();
+    const distance = Math.abs(rect.top + rect.height / 2 - viewportMiddle);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestIndex = index;
+    }
+  });
+
+  return closestIndex;
+}
+
+function goToFrame(direction) {
+  const nextIndex = Math.max(0, Math.min(frameSections.length - 1, getCurrentFrameIndex() + direction));
+  frameSections[nextIndex].scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+window.addEventListener(
+  "wheel",
+  (event) => {
+    if (shouldIgnoreFrameNavigation(event)) return;
+    if (Math.abs(event.deltaY) < 18) return;
+
+    const now = Date.now();
+    if (now - lastFrameScrollAt < 720) {
+      event.preventDefault();
+      return;
+    }
+
+    event.preventDefault();
+    lastFrameScrollAt = now;
+    goToFrame(event.deltaY > 0 ? 1 : -1);
+  },
+  { passive: false },
+);
+
+window.addEventListener("keydown", (event) => {
+  if (shouldIgnoreFrameNavigation(event)) return;
+
+  if (event.key === "ArrowDown" || event.key === "PageDown") {
+    event.preventDefault();
+    goToFrame(1);
+  }
+
+  if (event.key === "ArrowUp" || event.key === "PageUp") {
+    event.preventDefault();
+    goToFrame(-1);
+  }
+});
+
 function openRequestedAuthMode() {
   const params = new URLSearchParams(window.location.search);
   const authMode = params.get("auth");
