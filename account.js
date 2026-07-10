@@ -240,11 +240,11 @@ function renderNatalChartWheel(reading) {
   return `
     <section class="natal-chart-panel">
       <div>
-        <p class="panel-kicker">Extended Shadow Snapshot preview</p>
-        <h3>11-Point Chart Map</h3>
+        <h3>Unlock the 9-point interpretation</h3>
         <p>
-          The numbered wheel marks 11 calculated chart factors. The Extended Shadow
-          Snapshot turns the strongest 9 into a focused psychological interpretation.
+          Your numbered wheel marks 11 calculated chart factors. The Snapshot focuses
+          on the 9 strongest signals and translates them into a clear psychological
+          interpretation.
         </p>
       </div>
       <svg class="natal-wheel" viewBox="0 0 200 200" role="img" aria-label="Calculated natal chart wheel">
@@ -267,16 +267,15 @@ function renderSnapshotOffer() {
     <div class="snapshot-offer">
       <div>
         <p class="panel-kicker">Extended Shadow Snapshot</p>
-        <h3>Unlock the 9-point interpretation</h3>
+        <h3>9-point interpretation unlocked</h3>
         <p>
-          A concise paid upgrade based on the numbered chart map: Sun, Moon,
-          Ascendant, relationship signals, action style, pressure points, and
-          emotional patterns.
+          This section is the foundation for the $4.99 Snapshot. Once checkout is
+          connected, new accounts will unlock it after purchase.
         </p>
       </div>
       <div class="snapshot-offer__price">
         <strong>$4.99</strong>
-        <button class="button button--ghost" type="button" disabled>Snapshot Checkout Coming Soon</button>
+        <button class="button button--ghost" type="button" disabled>Unlocked Preview</button>
       </div>
     </div>
   `;
@@ -410,11 +409,7 @@ function renderReadingDetail(reading) {
   const fullReport = findFullReport(reading);
 
   cabinetDetail.innerHTML = `
-    <div class="cabinet-detail-header">
-      <div>
-        <p class="panel-kicker">Saved mini reading</p>
-        <h2>${escapeHtml(getReadingTitle(reading))}</h2>
-      </div>
+    <div class="cabinet-detail-header cabinet-detail-header--compact">
       <a class="button button--ghost" href="index.html#full-report">Upgrade to Full Report</a>
     </div>
 

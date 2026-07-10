@@ -722,6 +722,16 @@ ul {
   margin-bottom: 20px;
 }
 
+.cabinet-detail-header--compact {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+
+.cabinet-detail-header--compact .button {
+  width: min(100%, 240px);
+}
+
 .cabinet-empty {
   display: grid;
   min-height: 300px;
@@ -867,9 +877,7 @@ ul {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  max-height: 188px;
   margin: 4px 0 0;
-  overflow: auto;
   padding: 0;
   list-style: none;
 }
@@ -947,9 +955,6 @@ ul {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   margin-top: 14px;
-  max-height: 360px;
-  overflow: auto;
-  padding-right: 4px;
 }
 
 .cabinet-reading-cards .reading-card {
