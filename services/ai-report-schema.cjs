@@ -1,4 +1,4 @@
-const REPORT_PRICE_CENTS = 1900;
+const REPORT_PRICE_CENTS = 1999;
 const REPORT_CURRENCY = "USD";
 
 const AI_REPORT_SCHEMA_VERSION = "2026-07-shadow-chart-v1";
@@ -387,7 +387,9 @@ function buildReportInput({ user, reading }) {
           planet: planet.label,
           sign: planet.sign,
           degree: planet.degree,
+          longitude: planet.longitude,
           house: planet.house,
+          humanDesignGate: planet.hd ? `${planet.hd.gate}.${planet.hd.line}` : "Unknown",
         })),
         aspects: core.aspects,
       },
@@ -455,6 +457,18 @@ function buildRaveChartVisualData(input) {
   };
 }
 
+function paragraph(parts) {
+  return parts.filter(Boolean).join(" ");
+}
+
+function placementByName(astrology, name) {
+  return (astrology.houses || []).find((placement) => placement.planet === name) || {};
+}
+
+function signFormula(sign, theme) {
+  return `${sign} carries ${theme}. In a shadow reading, this is never treated as a flat personality label; it is read as a pressure pattern, a desire pattern, and a survival intelligence that can become either a gift or a loop.`;
+}
+
 function createMockAiReport({ user, reading }) {
   const input = buildReportInput({ user, reading });
   const astrology = input.calculatedData.astrology;
@@ -463,6 +477,12 @@ function createMockAiReport({ user, reading }) {
   const aspectLine = strongestAspect
     ? `${strongestAspect.from} ${strongestAspect.type} ${strongestAspect.to}`
     : "your strongest visible placements";
+  const sunPlacement = placementByName(astrology, "Sun");
+  const moonPlacement = placementByName(astrology, "Moon");
+  const mercuryPlacement = placementByName(astrology, "Mercury");
+  const venusPlacement = placementByName(astrology, "Venus");
+  const marsPlacement = placementByName(astrology, "Mars");
+  const saturnPlacement = placementByName(astrology, "Saturn");
 
   return {
     meta: {
@@ -500,14 +520,114 @@ function createMockAiReport({ user, reading }) {
     },
     fullReport: {
       sections: [
-        { id: "birth_chart_overview", title: "Birth Chart Overview", body: `This report uses the calculated chart data for ${displayName}: ${astrology.sunSign} Sun, ${astrology.moonSign} Moon, and ${astrology.risingSign} Rising.` },
-        { id: "sun_moon_rising", title: "Sun, Moon & Rising", body: `The Sun describes the path of becoming, the Moon reveals the emotional survival pattern, and the Rising sign shows the atmosphere people meet first.` },
-        { id: "venus_love_style", title: "Venus & Love Style", body: `Venus in ${astrology.venusSign} shows how connection becomes magnetic, safe, or complicated.` },
-        { id: "mars_desire_conflict", title: "Mars, Desire & Conflict", body: `Mars in ${astrology.marsSign} reveals the way desire becomes action, anger, pursuit, or protection.` },
-        { id: "shadow_traits", title: "Shadow Traits", body: `The shadow pattern is not a flaw. It is a survival intelligence that needs a better job.` },
-        { id: "emotional_triggers", title: "Emotional Triggers", body: `The Moon and the strongest aspects point to the places where the body reacts before the mind catches up.` },
-        { id: "relationship_patterns", title: "Relationship Patterns", body: `Your relationship mirror is shaped by Venus, Mars, and ${aspectLine}.` },
-        { id: "growth_path", title: "Growth Path", body: `The growth path is to stop treating the old protection strategy as identity and start using it as information.` },
+        {
+          id: "birth_chart_overview",
+          title: "Birth Chart Overview",
+          body: paragraph([
+            `This report uses the calculated chart data for ${displayName}: ${astrology.sunSign} Sun, ${astrology.moonSign} Moon, and ${astrology.risingSign} Rising.`,
+            `The chart is read as a living system rather than a list of traits. The Sun shows the identity current, the Moon shows the emotional memory, the Rising sign shows the first signal the world receives, and the houses show where these patterns become real-life situations.`,
+            `The most important thing to understand is that the shadow is not an enemy. It is the older intelligence that learned how to protect you before you had better tools. This report names that pattern so it can become choice instead of repetition.`,
+          ]),
+        },
+        {
+          id: "sun_moon_rising",
+          title: "Sun, Moon & Rising",
+          body: paragraph([
+            `Your Sun in ${astrology.sunSign}${sunPlacement.house ? ` in house ${sunPlacement.house}` : ""} describes the part of you that is learning to become visible without abandoning its own standard.`,
+            `Your Moon in ${astrology.moonSign}${moonPlacement.house ? ` in house ${moonPlacement.house}` : ""} describes the emotional weather underneath the identity. This is where your nervous system looks for safety before your mind has explained anything.`,
+            `Your ${astrology.risingSign} Rising is the atmosphere people meet first. It can become a mask when you are under pressure, but it can also become a clean doorway into the rest of the chart when you use it consciously.`,
+          ]),
+        },
+        {
+          id: "mind_voice",
+          title: "Mind, Voice & Perception",
+          body: paragraph([
+            `Mercury in ${mercuryPlacement.sign || "Unknown"} shows how your mind organizes the world and how you protect yourself through language, silence, analysis, humor, or precision.`,
+            `In the shadow, Mercury can become a defense: over-explaining, withholding, intellectualizing, or trying to control the emotional field through the right words.`,
+            `The medicine is to let your voice become accurate rather than armored. A clean Mercury does not need to win every interpretation; it names what is true enough to move forward.`,
+          ]),
+        },
+        {
+          id: "venus_love_style",
+          title: "Venus & Love Style",
+          body: paragraph([
+            `Venus in ${astrology.venusSign}${venusPlacement.house ? ` in house ${venusPlacement.house}` : ""} shows how you bond, what feels beautiful, and what kind of attention makes your body soften.`,
+            signFormula(astrology.venusSign, "a specific love language and value system"),
+            `In the shadow, Venus can confuse attraction with safety or confuse being desired with being truly met. The deeper work is learning which connections regulate you and which connections only activate the old hunger.`,
+          ]),
+        },
+        {
+          id: "mars_desire_conflict",
+          title: "Mars, Desire & Conflict",
+          body: paragraph([
+            `Mars in ${astrology.marsSign}${marsPlacement.house ? ` in house ${marsPlacement.house}` : ""} describes your raw movement: desire, anger, pursuit, defense, and the way you act when pressure rises.`,
+            `This placement is not only about conflict. It is also about permission. When Mars is integrated, you stop waiting for perfect certainty before taking clean action.`,
+            `The shadow expression is either overdrive or collapse: pushing too hard, reacting too fast, or disconnecting from desire because wanting something feels dangerous.`,
+          ]),
+        },
+        {
+          id: "shadow_traits",
+          title: "Shadow Traits",
+          body: paragraph([
+            `The recurring shadow pattern in this chart is created by the tension between ${astrology.sunSign} identity, ${astrology.moonSign} emotional memory, and the outer signal of ${astrology.risingSign}.`,
+            `When this pattern is unconscious, you may perform competence while privately carrying emotional weather that has not been witnessed. You may also become loyal to pressure because pressure feels familiar.`,
+            `The gift is that the same pattern can become depth, self-command, and unusual emotional intelligence. The shadow does not need to be destroyed; it needs a more honest role.`,
+          ]),
+        },
+        {
+          id: "emotional_triggers",
+          title: "Emotional Triggers",
+          body: paragraph([
+            `The Moon and strongest aspects point to the places where the body reacts before the mind catches up. In this chart, the trigger field is shaped by ${astrology.moonSign} emotional memory and ${aspectLine}.`,
+            `A trigger is not proof that something is wrong with you. It is a signal that an old protection strategy has taken the wheel. The question is not "why am I like this?" but "what is this reaction trying to prevent me from feeling?"`,
+            `When the emotional field is regulated, you can respond with precision instead of reenacting the old defense.`,
+          ]),
+        },
+        {
+          id: "relationship_patterns",
+          title: "Relationship Patterns",
+          body: paragraph([
+            `Your relationship mirror is shaped by Venus, Mars, the Moon, and ${aspectLine}. Venus shows what attracts and soothes you. Mars shows what excites, frustrates, and mobilizes you.`,
+            `The shadow relationship pattern is often a negotiation between wanting depth and wanting control over the conditions of vulnerability. The chart asks for connection that does not require self-abandonment.`,
+            `The cleanest partnership path is not intensity for its own sake, but honesty with enough structure to let intimacy become safe over time.`,
+          ]),
+        },
+        {
+          id: "career_direction",
+          title: "Career Energy & Public Direction",
+          body: paragraph([
+            `Saturn in ${saturnPlacement.sign || "Unknown"}${saturnPlacement.house ? ` in house ${saturnPlacement.house}` : ""} describes the long-term maturation path: the place where discipline slowly becomes authority.`,
+            `Career energy in this report is not read as a job title. It is read as the way your system builds trust with its own capacity. The chart points toward work that lets pressure become mastery rather than quiet self-punishment.`,
+            `The shadow is over-identifying with endurance. The gift is becoming someone whose presence, craft, and decisions carry weight because they were built honestly.`,
+          ]),
+        },
+        {
+          id: "energy_in_plus_minus",
+          title: "Energy in Light & Shadow",
+          body: paragraph([
+            `In the plus expression, this chart becomes focused, emotionally perceptive, loyal to truth, and capable of turning pressure into structure. You can read atmospheres, sense hidden dynamics, and commit deeply when something has meaning.`,
+            `In the minus expression, the same energy becomes guarded, over-responsible, suspicious of softness, or too willing to carry weight alone. The shadow version tries to stay safe by staying in control.`,
+            `The work is to let strength include receptivity. The chart becomes more powerful when you stop treating tenderness as a liability.`,
+          ]),
+        },
+        {
+          id: "recommendations",
+          title: "Recommendations & Practices",
+          body: paragraph([
+            `Practice one daily check-in: "What am I protecting right now?" Write the answer without making it elegant. This builds a bridge between reaction and awareness.`,
+            `Use the body before analysis: walking, breath, stretching, water, and direct sensory grounding will help the Moon settle faster than trying to think your way into safety.`,
+            `Choose one relationship or work situation where you usually over-control. Make one clean request instead. The chart strengthens when desire becomes language.`,
+          ]),
+        },
+        {
+          id: "growth_path",
+          title: "Growth Path",
+          body: paragraph([
+            `The growth path is to stop treating the old protection strategy as identity and start using it as information.`,
+            `Your chart does not ask you to become softer by becoming less powerful. It asks you to become more honest about where power is actually coming from: fear, pressure, devotion, truth, or love.`,
+            `The more conscious this becomes, the less your life has to be organized around invisible defense. That is where the shadow begins to turn into direction.`,
+          ]),
+        },
       ],
     },
     humanDesign: {

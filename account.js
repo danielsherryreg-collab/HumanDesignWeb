@@ -115,6 +115,116 @@ function findFullReport(reading) {
   return state.fullReports.find((report) => String(report.readingId) === String(reading.id));
 }
 
+const zodiacSigns = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
+const zodiacGlyphs = {
+  Aries: "Ar",
+  Taurus: "Ta",
+  Gemini: "Ge",
+  Cancer: "Ca",
+  Leo: "Le",
+  Virgo: "Vi",
+  Libra: "Li",
+  Scorpio: "Sc",
+  Sagittarius: "Sg",
+  Capricorn: "Cp",
+  Aquarius: "Aq",
+  Pisces: "Pi",
+};
+const planetGlyphs = {
+  Sun: "Su",
+  Moon: "Mo",
+  Mercury: "Me",
+  Venus: "Ve",
+  Mars: "Ma",
+  Jupiter: "Ju",
+  Saturn: "Sa",
+  Uranus: "Ur",
+  Neptune: "Ne",
+  Pluto: "Pl",
+};
+
+function polarPoint(cx, cy, radius, longitude) {
+  const angle = ((longitude - 90) * Math.PI) / 180;
+  return {
+    x: cx + Math.cos(angle) * radius,
+    y: cy + Math.sin(angle) * radius,
+  };
+}
+
+function renderNatalChartWheel(reading) {
+  const chart = reading.chart;
+  if (!chart?.planets) return "";
+
+  const planets = Object.values(chart.planets);
+  const aspectLines = (chart.aspects || [])
+    .slice(0, 18)
+    .map((aspect) => {
+      const from = planets.find((planet) => planet.label === aspect.from);
+      const to = planets.find((planet) => planet.label === aspect.to);
+      if (!from || !to) return "";
+      const a = polarPoint(100, 100, 56, from.longitude);
+      const b = polarPoint(100, 100, 56, to.longitude);
+      return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="natal-aspect natal-aspect--${escapeHtml(aspect.type)}" />`;
+    })
+    .join("");
+
+  const signLabels = zodiacSigns
+    .map((sign, index) => {
+      const point = polarPoint(100, 100, 83, index * 30 + 15);
+      return `<text x="${point.x}" y="${point.y}" class="natal-sign">${zodiacGlyphs[sign]}</text>`;
+    })
+    .join("");
+
+  const signLines = zodiacSigns
+    .map((_, index) => {
+      const inner = polarPoint(100, 100, 64, index * 30);
+      const outer = polarPoint(100, 100, 92, index * 30);
+      return `<line x1="${inner.x}" y1="${inner.y}" x2="${outer.x}" y2="${outer.y}" class="natal-division" />`;
+    })
+    .join("");
+
+  const houseLines = Array.from({ length: 12 })
+    .map((_, index) => {
+      const longitude = (chart.ascendant?.longitude || 0) + index * 30;
+      const inner = polarPoint(100, 100, 35, longitude);
+      const outer = polarPoint(100, 100, 64, longitude);
+      return `<line x1="${inner.x}" y1="${inner.y}" x2="${outer.x}" y2="${outer.y}" class="natal-house" />`;
+    })
+    .join("");
+
+  const planetLabels = planets
+    .map((planet, index) => {
+      const point = polarPoint(100, 100, 52 - (index % 2) * 6, planet.longitude);
+      return `
+        <g class="natal-planet">
+          <circle cx="${point.x}" cy="${point.y}" r="4.6"></circle>
+          <text x="${point.x}" y="${point.y + 1.5}">${escapeHtml(planetGlyphs[planet.label] || planet.label.slice(0, 2))}</text>
+        </g>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="natal-chart-panel">
+      <div>
+        <p class="panel-kicker">Calculated natal wheel</p>
+        <h3>Birth Chart Map</h3>
+        <p>This wheel is rendered from the saved planetary longitudes, houses, and aspects.</p>
+      </div>
+      <svg class="natal-wheel" viewBox="0 0 200 200" role="img" aria-label="Calculated natal chart wheel">
+        <circle cx="100" cy="100" r="92" class="natal-ring natal-ring--outer"></circle>
+        <circle cx="100" cy="100" r="64" class="natal-ring"></circle>
+        <circle cx="100" cy="100" r="35" class="natal-ring natal-ring--inner"></circle>
+        <g>${signLines}</g>
+        <g>${houseLines}</g>
+        <g>${aspectLines}</g>
+        <g>${planetLabels}</g>
+        <g>${signLabels}</g>
+      </svg>
+    </section>
+  `;
+}
+
 function renderRaveChartRenderer(report) {
   const visualData = report?.report?.humanDesign?.raveChartVisualData;
   if (!visualData) return "";
@@ -272,6 +382,7 @@ function renderReadingDetail(reading) {
     </div>
 
     ${renderChartSnapshot(reading)}
+    ${renderNatalChartWheel(reading)}
 
     <div class="cabinet-reading-cards">
       ${cards
@@ -294,7 +405,7 @@ function renderReadingDetail(reading) {
         <p>
           Your mini reading is the first layer. The full report will expand this into
           shadow patterns, relationship dynamics, career energy, Human Design gates,
-          and practical reflection prompts. Launch price: $19.
+          and practical reflection prompts. Launch price: $19.99.
         </p>
       </div>
       <button class="button button--primary" type="button" data-create-full-report="${escapeHtml(reading.id)}">

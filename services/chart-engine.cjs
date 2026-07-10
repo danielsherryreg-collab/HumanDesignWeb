@@ -419,18 +419,6 @@ function buildCards(chart, firstName) {
         ? `${describeAspect(strongestAspect)} This is one of the first tensions to watch because it repeats until it becomes conscious. It can show up as a recurring emotional script, a familiar relationship dynamic, or a place where your body reacts before your mind has finished understanding.`
         : "No tight major aspect appeared within the basic orb set. That makes the Big Three, houses, and Human Design gates especially important in this mini-reading.",
     },
-    {
-      title: "Karmic Lesson",
-      text: `${formatPlacement(saturn)} marks a long-term maturation path around ${HOUSE_TOPICS[saturn.house]}. Saturn's shadow can feel like delay, fear, or pressure to over-control, but its gift is earned authority. ${pressureAspect ? `The pressure aspect to watch is ${describeAspect(pressureAspect)}` : "The lesson is less about one dramatic aspect and more about repeating small choices until they become structure."}`,
-    },
-    {
-      title: "Human Design Layer",
-      text: `Your Personality Sun is Gate ${sun.hd.gate}.${sun.hd.line} (${sunGateTheme}); Personality Earth is Gate ${chart.humanDesign.personalityEarth.gate}.${chart.humanDesign.personalityEarth.line} (${gateTheme(chart.humanDesign.personalityEarth.gate)}). Your Design Sun is Gate ${designSun.gate}.${designSun.line} (${gateTheme(designSun.gate)}). Current focus sequence: ${buildFocusList(chart.planets)}.`,
-    },
-    {
-      title: "Shadow Integration Prompt",
-      text: `Pluto in ${pluto.sign} points to a deeper transformation pattern around power, honesty, and unconscious attachment. For the next 7 days, watch where ${SIGN_SHADOWS[sun.sign]} meets ${SIGN_SHADOWS[moon.sign]}. The integration question is: where am I repeating an old protection strategy when the cleaner move would be to ${SIGN_MEDICINE[sun.sign]}?`,
-    },
   ];
 }
 

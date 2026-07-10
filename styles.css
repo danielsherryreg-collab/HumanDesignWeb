@@ -470,9 +470,27 @@ input:focus {
   align-items: center;
 }
 
+.report-offers {
+  display: grid;
+  gap: 14px;
+}
+
 .report-panel,
 .checkout-card {
   padding: 26px;
+}
+
+.report-panel--compact {
+  border-color: rgba(185, 151, 91, 0.4);
+  background:
+    linear-gradient(145deg, rgba(185, 151, 91, 0.08), transparent 42%),
+    rgba(16, 14, 15, 0.68);
+}
+
+.report-panel--compact .button {
+  width: 100%;
+  cursor: not-allowed;
+  opacity: 0.78;
 }
 
 .price-line,
@@ -738,6 +756,100 @@ ul {
   line-height: 1.4;
 }
 
+.natal-chart-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(280px, 1fr);
+  gap: 24px;
+  align-items: center;
+  border: 1px solid rgba(185, 151, 91, 0.22);
+  border-radius: 8px;
+  margin-top: 18px;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 70% 45%, rgba(108, 75, 216, 0.18), transparent 22rem),
+    radial-gradient(circle at 30% 35%, rgba(185, 151, 91, 0.1), transparent 18rem),
+    rgba(5, 5, 5, 0.5);
+}
+
+.natal-chart-panel h3 {
+  font-size: 1.7rem;
+}
+
+.natal-chart-panel p:not(.panel-kicker) {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.natal-wheel {
+  width: min(100%, 430px);
+  aspect-ratio: 1;
+  justify-self: center;
+  filter: drop-shadow(0 0 26px rgba(108, 75, 216, 0.18));
+}
+
+.natal-ring {
+  fill: rgba(5, 5, 5, 0.22);
+  stroke: rgba(239, 232, 218, 0.34);
+  stroke-width: 0.55;
+}
+
+.natal-ring--outer {
+  stroke: rgba(185, 151, 91, 0.76);
+  stroke-width: 0.9;
+}
+
+.natal-ring--inner {
+  fill: rgba(108, 75, 216, 0.08);
+  stroke: rgba(185, 151, 91, 0.38);
+}
+
+.natal-division,
+.natal-house {
+  stroke: rgba(239, 232, 218, 0.26);
+  stroke-width: 0.42;
+}
+
+.natal-house {
+  stroke: rgba(185, 151, 91, 0.22);
+}
+
+.natal-aspect {
+  stroke: rgba(185, 151, 91, 0.45);
+  stroke-width: 0.45;
+}
+
+.natal-aspect--square,
+.natal-aspect--opposition {
+  stroke: rgba(180, 20, 26, 0.56);
+}
+
+.natal-aspect--trine,
+.natal-aspect--sextile {
+  stroke: rgba(108, 75, 216, 0.52);
+}
+
+.natal-sign {
+  fill: rgba(239, 232, 218, 0.76);
+  font-size: 5px;
+  font-weight: 800;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.natal-planet circle {
+  fill: #100e0f;
+  stroke: var(--gold);
+  stroke-width: 0.75;
+}
+
+.natal-planet text {
+  fill: #efe8da;
+  font-size: 3.7px;
+  font-weight: 800;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
 .cabinet-reading-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -997,6 +1109,7 @@ ul {
   .cabinet-detail-header,
   .birth-summary,
   .chart-snapshot,
+  .natal-chart-panel,
   .cabinet-reading-cards,
   .full-report-offer,
   .structured-ui-cards,

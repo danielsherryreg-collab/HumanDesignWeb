@@ -88,6 +88,130 @@ function buildReportLines({ user, reading, report }) {
   return lines;
 }
 
+const ZODIAC_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
+const ZODIAC_LABELS = ["Ar", "Ta", "Ge", "Ca", "Le", "Vi", "Li", "Sc", "Sg", "Cp", "Aq", "Pi"];
+const PLANET_LABELS = {
+  Sun: "Su",
+  Moon: "Mo",
+  Mercury: "Me",
+  Venus: "Ve",
+  Mars: "Ma",
+  Jupiter: "Ju",
+  Saturn: "Sa",
+  Uranus: "Ur",
+  Neptune: "Ne",
+  Pluto: "Pl",
+};
+
+function polarPoint(cx, cy, radius, longitude) {
+  const angle = ((longitude - 90) * Math.PI) / 180;
+  return {
+    x: cx + Math.cos(angle) * radius,
+    y: cy - Math.sin(angle) * radius,
+  };
+}
+
+function pdfCircle(cx, cy, radius) {
+  const c = radius * 0.5522847498;
+  return [
+    `${cx + radius} ${cy} m`,
+    `${cx + radius} ${cy + c} ${cx + c} ${cy + radius} ${cx} ${cy + radius} c`,
+    `${cx - c} ${cy + radius} ${cx - radius} ${cy + c} ${cx - radius} ${cy} c`,
+    `${cx - radius} ${cy - c} ${cx - c} ${cy - radius} ${cx} ${cy - radius} c`,
+    `${cx + c} ${cy - radius} ${cx + radius} ${cy - c} ${cx + radius} ${cy} c`,
+  ].join("\n");
+}
+
+function lineCommand(a, b) {
+  return `${a.x.toFixed(2)} ${a.y.toFixed(2)} m ${b.x.toFixed(2)} ${b.y.toFixed(2)} l S`;
+}
+
+function textCommand(text, x, y, size = 8) {
+  return `BT /F1 ${size} Tf 1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm (${escapePdfText(text)}) Tj ET`;
+}
+
+function buildNatalWheelCommands(reading) {
+  const chart = reading.chart || {};
+  const planets = Object.values(chart.planets || {});
+  if (!planets.length) return "";
+
+  const cx = 306;
+  const cy = 408;
+  const outer = 218;
+  const signRing = 182;
+  const planetRing = 128;
+  const inner = 78;
+  const ascendantLongitude = chart.ascendant?.longitude || 0;
+  const commands = [
+    "q",
+    "0.05 0.045 0.055 rg 0.05 0.045 0.055 RG",
+    pdfCircle(cx, cy, outer),
+    "f",
+    "0.72 0.58 0.34 RG 1.2 w",
+    pdfCircle(cx, cy, outer),
+    "S",
+    "0.82 0.78 0.68 RG 0.65 w",
+    pdfCircle(cx, cy, signRing),
+    "S",
+    "0.42 0.29 0.78 RG 0.55 w",
+    pdfCircle(cx, cy, inner),
+    "S",
+  ];
+
+  for (let index = 0; index < 12; index += 1) {
+    const division = index * 30;
+    commands.push("0.72 0.58 0.34 RG 0.35 w");
+    commands.push(lineCommand(polarPoint(cx, cy, signRing, division), polarPoint(cx, cy, outer, division)));
+
+    const house = ascendantLongitude + index * 30;
+    commands.push("0.82 0.78 0.68 RG 0.25 w");
+    commands.push(lineCommand(polarPoint(cx, cy, inner, house), polarPoint(cx, cy, signRing, house)));
+
+    const labelPoint = polarPoint(cx, cy, outer - 24, division + 15);
+    commands.push(textCommand(ZODIAC_LABELS[index], labelPoint.x - 5, labelPoint.y - 3, 8));
+  }
+
+  for (const aspect of (chart.aspects || []).slice(0, 18)) {
+    const from = planets.find((planet) => planet.label === aspect.from);
+    const to = planets.find((planet) => planet.label === aspect.to);
+    if (!from || !to) continue;
+    const color = aspect.type === "square" || aspect.type === "opposition" ? "0.70 0.08 0.10 RG" : "0.42 0.29 0.78 RG";
+    commands.push(`${color} 0.35 w`);
+    commands.push(lineCommand(polarPoint(cx, cy, planetRing, from.longitude), polarPoint(cx, cy, planetRing, to.longitude)));
+  }
+
+  planets.forEach((planet, index) => {
+    const point = polarPoint(cx, cy, planetRing - (index % 2) * 18, planet.longitude);
+    commands.push("0.06 0.055 0.06 rg 0.72 0.58 0.34 RG 0.8 w");
+    commands.push(pdfCircle(point.x, point.y, 12));
+    commands.push("B");
+    commands.push(textCommand(PLANET_LABELS[planet.label] || planet.label.slice(0, 2), point.x - 6, point.y - 3, 7));
+  });
+
+  commands.push(
+    "0.72 0.58 0.34 RG 1 w",
+    lineCommand(polarPoint(cx, cy, inner - 10, ascendantLongitude), polarPoint(cx, cy, outer + 8, ascendantLongitude)),
+    textCommand("ASC", polarPoint(cx, cy, outer + 18, ascendantLongitude).x - 8, polarPoint(cx, cy, outer + 18, ascendantLongitude).y - 3, 8),
+    "Q",
+  );
+
+  return commands.join("\n");
+}
+
+function buildCoverPage({ user, reading, report }) {
+  const identity = report.identity || {};
+  const chart = reading.chart || {};
+  return [
+    { text: "SHADOW CHART", size: 12, x: 56, y: 746 },
+    { text: identity.title || "Full Birth Chart Report", size: 24, x: 56, y: 718 },
+    { text: identity.subtitle || "Dark astrology birth chart reading", size: 13, x: 56, y: 696 },
+    { kind: "raw", commands: buildNatalWheelCommands(reading) },
+    { text: `Prepared for: ${reading.firstName || user.name || user.email}`, size: 10, x: 56, y: 116 },
+    { text: `Birth date: ${reading.birthDate || "Unknown"}   Birth time: ${reading.birthTime || "Unknown"}   Birth place: ${reading.birthPlace || "Unknown"}`, size: 10, x: 56, y: 100 },
+    { text: `Ascendant: ${chart.ascendant?.degree || "?"} deg ${chart.ascendant?.sign || "Unknown"}   Engine: ${chart.engine || "Shadow Chart"}`, size: 9, x: 56, y: 84 },
+  ];
+}
+
 function paginate(lines) {
   const pages = [];
   let page = [];
@@ -122,15 +246,15 @@ function createPdfBuffer(pages) {
   const pageIds = [];
 
   pages.forEach((page, index) => {
-    const stream = [
-      "BT",
-      ...page.map((item) => {
+    const stream = page
+      .map((item) => {
+        if (item.kind === "raw") return item.commands || "";
         const size = item.size || 11;
-        return `/F1 ${size} Tf 1 0 0 1 56 ${item.y} Tm (${escapePdfText(item.text)}) Tj`;
-      }),
-      `/F1 9 Tf 1 0 0 1 500 34 Tm (${index + 1}) Tj`,
-      "ET",
-    ].join("\n");
+        const x = item.x || 56;
+        return `BT /F1 ${size} Tf 1 0 0 1 ${x} ${item.y} Tm (${escapePdfText(item.text)}) Tj ET`;
+      })
+      .concat(`BT /F1 9 Tf 1 0 0 1 500 34 Tm (${index + 1}) Tj ET`)
+      .join("\n");
     const contentId = addObject(`<< /Length ${Buffer.byteLength(stream, "utf8")} >>\nstream\n${stream}\nendstream`);
     const pageId = addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`);
     pageIds.push(pageId);
@@ -157,7 +281,7 @@ function createPdfBuffer(pages) {
 
 function renderFullReportPdf({ user, reading, report }) {
   const lines = buildReportLines({ user, reading, report });
-  return createPdfBuffer(paginate(lines));
+  return createPdfBuffer([buildCoverPage({ user, reading, report }), ...paginate(lines)]);
 }
 
 module.exports = {

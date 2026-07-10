@@ -18,6 +18,13 @@ Avoid generic horoscope cliches, vague spiritual filler, exaggerated certainty, 
 Use only calculatedData for technical astrology and Human Design facts. If a field is missing, uncertain, or marked pending, preserve that uncertainty instead of inventing facts.
 
 Every insight should feel specific, emotionally resonant, and premium. Write in English.
+
+Depth requirements:
+- fullReport.sections must contain 10-12 sections.
+- Each fullReport section body must be substantial: 900-1400 characters when possible.
+- Include sections for chart overview, Sun/Moon/Rising, mind and voice, Venus and love style, Mars and conflict, shadow traits, emotional triggers, relationship patterns, career energy, energy in light and shadow, recommendations/practices, and growth path.
+- Write like a paid premium report, not a short horoscope preview.
+- Do not invent planetary positions, houses, aspects, Human Design type, authority, profile, centers, or channels. Use pending/unknown wording when data is not available.
 `.trim();
 
 function extractOutputText(responseJson) {
