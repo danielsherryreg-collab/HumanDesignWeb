@@ -31,9 +31,13 @@ function wrapText(text, maxLength = 88) {
 }
 
 function addWrapped(lines, text, options = {}) {
-  const { maxLength = 88, prefix = "" } = options;
+  const { maxLength = 88, prefix = "", size = 11, gap } = options;
   for (const line of wrapText(text, maxLength)) {
-    lines.push(`${prefix}${line}`);
+    lines.push({
+      text: `${prefix}${line}`,
+      size,
+      ...(gap ? { gap } : {}),
+    });
   }
 }
 
