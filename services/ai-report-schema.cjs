@@ -521,21 +521,39 @@ function createMockAiReport({ user, reading }) {
     fullReport: {
       sections: [
         {
-          id: "birth_chart_overview",
-          title: "Birth Chart Overview",
+          id: "personality_core_sun",
+          title: "Personality Core (Sun)",
           body: paragraph([
-            `This report uses the calculated chart data for ${displayName}: ${astrology.sunSign} Sun, ${astrology.moonSign} Moon, and ${astrology.risingSign} Rising.`,
-            `The chart is read as a living system rather than a list of traits. The Sun shows the identity current, the Moon shows the emotional memory, the Rising sign shows the first signal the world receives, and the houses show where these patterns become real-life situations.`,
-            `The most important thing to understand is that the shadow is not an enemy. It is the older intelligence that learned how to protect you before you had better tools. This report names that pattern so it can become choice instead of repetition.`,
+            `Your Sun in ${astrology.sunSign}${sunPlacement.house ? ` in house ${sunPlacement.house}` : ""} describes the core current of your personality: motivation, life-force, and the way you try to become more fully yourself.`,
+            `This is not a fixed label. It is a pattern of attention and energy. When the Sun is expressed clearly, you feel more direct, coherent, and internally organized. When it is under pressure, you may try to prove yourself, over-control the situation, or hide the part of you that wants to be recognized.`,
+            `The useful question is simple: what makes you feel alive without forcing you to perform? That is usually where the Sun becomes healthier.`,
           ]),
         },
         {
-          id: "sun_moon_rising",
-          title: "Sun, Moon & Rising",
+          id: "emotional_world_moon",
+          title: "Emotional World (Moon)",
           body: paragraph([
-            `Your Sun in ${astrology.sunSign}${sunPlacement.house ? ` in house ${sunPlacement.house}` : ""} describes the part of you that is learning to become visible without abandoning its own standard.`,
             `Your Moon in ${astrology.moonSign}${moonPlacement.house ? ` in house ${moonPlacement.house}` : ""} describes the emotional weather underneath the identity. This is where your nervous system looks for safety before your mind has explained anything.`,
-            `Your ${astrology.risingSign} Rising is the atmosphere people meet first. It can become a mask when you are under pressure, but it can also become a clean doorway into the rest of the chart when you use it consciously.`,
+            `The Moon shows reactions, needs, comfort, memory, and the style of self-protection that appears when you are tired, attached, or uncertain. Difficult Moon patterns are not weaknesses; they are signals that your emotional body is asking for care, structure, or honesty.`,
+            `The more you understand this placement, the easier it becomes to separate a real present-moment need from an old emotional reflex.`,
+          ]),
+        },
+        {
+          id: "social_mask_ascendant",
+          title: "Social Mask (Ascendant)",
+          body: paragraph([
+            `Your ${astrology.risingSign} Ascendant describes the first impression you give, the behavioral style people meet first, and the way you enter unfamiliar situations.`,
+            `This can become a mask when you are under pressure: a role you use to stay safe or readable. But it can also become a healthy interface between your private inner world and the outside world.`,
+            `The Ascendant is not fake. It is the doorway. The work is to let that doorway express the real person behind it instead of using it only as protection.`,
+          ]),
+        },
+        {
+          id: "synthesis",
+          title: "Synthesis",
+          body: paragraph([
+            `The central pattern comes from the interaction between ${astrology.sunSign} Sun, ${astrology.moonSign} Moon, and ${astrology.risingSign} Rising.`,
+            `The Sun shows what wants to grow, the Moon shows what needs to feel safe, and the Ascendant shows how you move through the world while both of those inner forces are active.`,
+            `When these parts cooperate, you can act with more clarity and less self-defense. When they conflict, you may feel split between what you want, what you need, and what you show. The goal is not to erase the contradiction, but to understand it well enough to choose consciously.`,
           ]),
         },
         {

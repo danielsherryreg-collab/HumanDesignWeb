@@ -86,8 +86,8 @@ function renderChartSnapshot(reading) {
 
   const sun = chart.planets && chart.planets.sun;
   const moon = chart.planets && chart.planets.moon;
+  const venus = chart.planets && chart.planets.venus;
   const asc = chart.ascendant;
-  const hd = chart.humanDesign;
 
   return `
     <div class="chart-snapshot">
@@ -104,8 +104,8 @@ function renderChartSnapshot(reading) {
         <strong>${escapeHtml(asc ? `${asc.degree} deg ${asc.sign}` : "Unknown")}</strong>
       </div>
       <div>
-        <span>Personality Sun</span>
-        <strong>${escapeHtml(hd ? `Gate ${hd.personalitySun.gate}.${hd.personalitySun.line}` : "Unknown")}</strong>
+        <span>Venus</span>
+        <strong>${escapeHtml(venus ? `${venus.degree} deg ${venus.sign}` : "Unknown")}</strong>
       </div>
     </div>
   `;
@@ -130,18 +130,38 @@ const zodiacGlyphs = {
   Aquarius: "Aq",
   Pisces: "Pi",
 };
-const planetGlyphs = {
-  Sun: "Su",
-  Moon: "Mo",
-  Mercury: "Me",
-  Venus: "Ve",
-  Mars: "Ma",
-  Jupiter: "Ju",
-  Saturn: "Sa",
-  Uranus: "Ur",
-  Neptune: "Ne",
-  Pluto: "Pl",
-};
+const chartPointOrder = [
+  { key: "sun", label: "Sun", meaning: "Personality core, motivation, life-force" },
+  { key: "moon", label: "Moon", meaning: "Emotional world, reactions, comfort zone" },
+  { key: "ascendant", label: "Ascendant", meaning: "Social mask, first impression, behavioral style" },
+  { key: "mercury", label: "Mercury", meaning: "Thinking, speech, perception" },
+  { key: "venus", label: "Venus", meaning: "Love style, values, attraction" },
+  { key: "mars", label: "Mars", meaning: "Drive, anger, action style" },
+  { key: "jupiter", label: "Jupiter", meaning: "Growth, optimism, expansion" },
+  { key: "saturn", label: "Saturn", meaning: "Boundaries, discipline, life lessons" },
+  { key: "uranus", label: "Uranus", meaning: "Freedom, change, individuality" },
+  { key: "neptune", label: "Neptune", meaning: "Dreams, sensitivity, idealization" },
+  { key: "pluto", label: "Pluto", meaning: "Depth, power, transformation" },
+];
+
+function getChartPoints(chart) {
+  return chartPointOrder
+    .map((point, index) => {
+      const source = point.key === "ascendant" ? chart.ascendant : chart.planets?.[point.key];
+      if (!source) return null;
+
+      return {
+        number: index + 1,
+        label: point.label,
+        meaning: point.meaning,
+        longitude: source.longitude,
+        sign: source.sign,
+        degree: source.degree,
+        house: source.house,
+      };
+    })
+    .filter(Boolean);
+}
 
 function polarPoint(cx, cy, radius, longitude) {
   const angle = ((longitude - 90) * Math.PI) / 180;
@@ -156,6 +176,7 @@ function renderNatalChartWheel(reading) {
   if (!chart?.planets) return "";
 
   const planets = Object.values(chart.planets);
+  const chartPoints = getChartPoints(chart);
   const aspectLines = (chart.aspects || [])
     .slice(0, 18)
     .map((aspect) => {
@@ -192,14 +213,26 @@ function renderNatalChartWheel(reading) {
     })
     .join("");
 
-  const planetLabels = planets
-    .map((planet, index) => {
-      const point = polarPoint(100, 100, 52 - (index % 2) * 6, planet.longitude);
+  const planetLabels = chartPoints
+    .map((chartPoint, index) => {
+      const point = polarPoint(100, 100, chartPoint.label === "Ascendant" ? 68 : 52 - (index % 2) * 6, chartPoint.longitude);
       return `
         <g class="natal-planet">
-          <circle cx="${point.x}" cy="${point.y}" r="4.6"></circle>
-          <text x="${point.x}" y="${point.y + 1.5}">${escapeHtml(planetGlyphs[planet.label] || planet.label.slice(0, 2))}</text>
+          <circle cx="${point.x}" cy="${point.y}" r="4.8"></circle>
+          <text x="${point.x}" y="${point.y + 1.5}">${escapeHtml(chartPoint.number)}</text>
         </g>
+      `;
+    })
+    .join("");
+
+  const legend = chartPoints
+    .map((point) => {
+      const placement = `${point.degree ?? "?"} deg ${point.sign || "Unknown"}${point.house ? `, House ${point.house}` : ""}`;
+      return `
+        <li>
+          <strong>${point.number}. ${escapeHtml(point.label)}</strong>
+          <span>${escapeHtml(placement)} - ${escapeHtml(point.meaning)}</span>
+        </li>
       `;
     })
     .join("");
@@ -221,6 +254,7 @@ function renderNatalChartWheel(reading) {
         <g>${planetLabels}</g>
         <g>${signLabels}</g>
       </svg>
+      <ol class="natal-legend">${legend}</ol>
     </section>
   `;
 }
@@ -320,7 +354,6 @@ function renderStructuredFullReport(report) {
           )
           .join("")}
       </div>
-      ${renderRaveChartRenderer(report)}
       <div class="structured-sections">
         ${fullSections
           .map(

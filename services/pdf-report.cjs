@@ -43,7 +43,6 @@ function addWrapped(lines, text, options = {}) {
 
 function buildReportLines({ user, reading, report }) {
   const identity = report.identity || {};
-  const hd = report.humanDesign?.summary || {};
   const sections = report.fullReport?.sections || [];
   const warnings = report.meta?.missingDataWarnings || [];
 
@@ -66,17 +65,6 @@ function buildReportLines({ user, reading, report }) {
     lines.push({ text: "", gap: 12 });
   }
 
-  lines.push({ text: "HUMAN DESIGN LAYER", size: 15, gap: 14 });
-  [
-    `Type: ${hd.type || "Pending"}`,
-    `Strategy: ${hd.strategy || "Pending"}`,
-    `Authority: ${hd.authority || "Pending"}`,
-    `Profile: ${hd.profile || "Pending"}`,
-    `Definition: ${hd.definition || "Pending"}`,
-  ].forEach((line) => lines.push({ text: line, size: 11 }));
-  addWrapped(lines, hd.interpretation || "", { maxLength: 84 });
-  lines.push({ text: "", gap: 14 });
-
   lines.push({ text: "FULL REPORT", size: 15, gap: 14 });
   sections.forEach((section, index) => {
     lines.push({ text: `${index + 1}. ${section.title}`, size: 14, gap: 12 });
@@ -90,18 +78,36 @@ function buildReportLines({ user, reading, report }) {
 
 const ZODIAC_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
 const ZODIAC_LABELS = ["Ar", "Ta", "Ge", "Ca", "Le", "Vi", "Li", "Sc", "Sg", "Cp", "Aq", "Pi"];
-const PLANET_LABELS = {
-  Sun: "Su",
-  Moon: "Mo",
-  Mercury: "Me",
-  Venus: "Ve",
-  Mars: "Ma",
-  Jupiter: "Ju",
-  Saturn: "Sa",
-  Uranus: "Ur",
-  Neptune: "Ne",
-  Pluto: "Pl",
-};
+const CHART_POINT_ORDER = [
+  { key: "sun", label: "Sun", meaning: "Personality core, motivation, life-force" },
+  { key: "moon", label: "Moon", meaning: "Emotional world, reactions, comfort zone" },
+  { key: "ascendant", label: "Ascendant", meaning: "Social mask, first impression, behavioral style" },
+  { key: "mercury", label: "Mercury", meaning: "Thinking, speech, perception" },
+  { key: "venus", label: "Venus", meaning: "Love style, values, attraction" },
+  { key: "mars", label: "Mars", meaning: "Drive, anger, action style" },
+  { key: "jupiter", label: "Jupiter", meaning: "Growth, optimism, expansion" },
+  { key: "saturn", label: "Saturn", meaning: "Boundaries, discipline, life lessons" },
+  { key: "uranus", label: "Uranus", meaning: "Freedom, change, individuality" },
+  { key: "neptune", label: "Neptune", meaning: "Dreams, sensitivity, idealization" },
+  { key: "pluto", label: "Pluto", meaning: "Depth, power, transformation" },
+];
+
+function getChartPoints(chart) {
+  return CHART_POINT_ORDER.map((point, index) => {
+    const source = point.key === "ascendant" ? chart.ascendant : chart.planets?.[point.key];
+    if (!source) return null;
+
+    return {
+      number: index + 1,
+      label: point.label,
+      meaning: point.meaning,
+      longitude: source.longitude,
+      sign: source.sign,
+      degree: source.degree,
+      house: source.house,
+    };
+  }).filter(Boolean);
+}
 
 function polarPoint(cx, cy, radius, longitude) {
   const angle = ((longitude - 90) * Math.PI) / 180;
@@ -135,12 +141,13 @@ function buildNatalWheelCommands(reading) {
   const planets = Object.values(chart.planets || {});
   if (!planets.length) return "";
 
-  const cx = 306;
-  const cy = 408;
-  const outer = 218;
-  const signRing = 182;
-  const planetRing = 128;
-  const inner = 78;
+  const chartPoints = getChartPoints(chart);
+  const cx = 230;
+  const cy = 390;
+  const outer = 152;
+  const signRing = 126;
+  const planetRing = 88;
+  const inner = 54;
   const ascendantLongitude = chart.ascendant?.longitude || 0;
   const commands = [
     "q",
@@ -180,12 +187,12 @@ function buildNatalWheelCommands(reading) {
     commands.push(lineCommand(polarPoint(cx, cy, planetRing, from.longitude), polarPoint(cx, cy, planetRing, to.longitude)));
   }
 
-  planets.forEach((planet, index) => {
-    const point = polarPoint(cx, cy, planetRing - (index % 2) * 18, planet.longitude);
+  chartPoints.forEach((chartPoint, index) => {
+    const point = polarPoint(cx, cy, chartPoint.label === "Ascendant" ? signRing + 12 : planetRing - (index % 2) * 12, chartPoint.longitude);
     commands.push("0.06 0.055 0.06 rg 0.72 0.58 0.34 RG 0.8 w");
-    commands.push(pdfCircle(point.x, point.y, 12));
+    commands.push(pdfCircle(point.x, point.y, 10));
     commands.push("B");
-    commands.push(textCommand(PLANET_LABELS[planet.label] || planet.label.slice(0, 2), point.x - 6, point.y - 3, 7));
+    commands.push(textCommand(String(chartPoint.number), point.x - 3, point.y - 3, 7));
   });
 
   commands.push(
@@ -201,10 +208,21 @@ function buildNatalWheelCommands(reading) {
 function buildCoverPage({ user, reading, report }) {
   const identity = report.identity || {};
   const chart = reading.chart || {};
+  const legend = getChartPoints(chart).flatMap((point, index) => {
+    const placement = `${point.degree ?? "?"} deg ${point.sign || "Unknown"}${point.house ? `, House ${point.house}` : ""}`;
+    const y = 578 - index * 25;
+    return [
+      { text: `${point.number}. ${point.label} - ${placement}`, size: 7.5, x: 394, y },
+      { text: point.meaning, size: 6.6, x: 406, y: y - 10 },
+    ];
+  });
+
   return [
     { text: "SHADOW CHART", size: 12, x: 56, y: 746 },
     { text: identity.title || "Full Birth Chart Report", size: 24, x: 56, y: 718 },
     { text: identity.subtitle || "Dark astrology birth chart reading", size: 13, x: 56, y: 696 },
+    { text: "CHART LEGEND", size: 12, x: 394, y: 604 },
+    ...legend,
     { kind: "raw", commands: buildNatalWheelCommands(reading) },
     { text: `Prepared for: ${reading.firstName || user.name || user.email}`, size: 10, x: 56, y: 116 },
     { text: `Birth date: ${reading.birthDate || "Unknown"}   Birth time: ${reading.birthTime || "Unknown"}   Birth place: ${reading.birthPlace || "Unknown"}`, size: 10, x: 56, y: 100 },

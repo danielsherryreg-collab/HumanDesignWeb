@@ -844,10 +844,45 @@ ul {
 
 .natal-planet text {
   fill: #efe8da;
-  font-size: 3.7px;
+  font-size: 4.2px;
   font-weight: 800;
   text-anchor: middle;
   dominant-baseline: middle;
+}
+
+.natal-legend {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.natal-legend li {
+  border: 1px solid rgba(239, 232, 218, 0.1);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(5, 5, 5, 0.28);
+}
+
+.natal-legend strong,
+.natal-legend span {
+  display: block;
+}
+
+.natal-legend strong {
+  color: var(--text);
+  font-family: Cinzel, Georgia, serif;
+  font-size: 0.86rem;
+}
+
+.natal-legend span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 
 .cabinet-reading-cards {
@@ -1115,6 +1150,10 @@ ul {
   .structured-ui-cards,
   .structured-sections,
   .rave-chart-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .natal-legend {
     grid-template-columns: 1fr;
   }
 
