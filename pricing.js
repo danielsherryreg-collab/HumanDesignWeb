@@ -153,6 +153,7 @@ function openCheckout(priceKey) {
     customData: {
       app: "shadow-chart",
       purchase_type: priceKey,
+      customer_email: state.customerEmail || "",
     },
   });
 }

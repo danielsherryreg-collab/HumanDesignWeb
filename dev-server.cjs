@@ -35,7 +35,9 @@ const resendFrom = process.env.RESEND_FROM_EMAIL || "Shadow Chart <onboarding@re
 const reportEmailDisabled = process.env.DISABLE_REPORT_EMAIL === "true";
 const sessionCookieName = "shadow_session";
 const SNAPSHOT_PRODUCT_KEY = "extended-shadow-snapshot";
+const FULL_REPORT_PRODUCT_KEY = "full-birth-chart-report";
 const SNAPSHOT_PRICE_CENTS = 99;
+const paddleWebhookSecret = process.env.PADDLE_WEBHOOK_SECRET || "";
 const paddleEnv = process.env.PADDLE_ENV || "";
 const paddleClientToken = process.env.PADDLE_CLIENT_TOKEN || "";
 const paddleSnapshotPriceId = process.env.PADDLE_SNAPSHOT_PRICE_ID || "";
@@ -131,6 +133,14 @@ function createDatabase() {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             unlocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             UNIQUE(user_id, reading_id, product_key)
+          );
+
+          CREATE TABLE IF NOT EXISTS paddle_webhook_events (
+            event_id TEXT PRIMARY KEY,
+            event_type TEXT NOT NULL,
+            payment_reference TEXT,
+            processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            payload_json TEXT NOT NULL
           );
 
           CREATE TABLE IF NOT EXISTS pending_registrations (
@@ -274,6 +284,14 @@ function createDatabase() {
           FOREIGN KEY (reading_id) REFERENCES readings(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS paddle_webhook_events (
+          event_id TEXT PRIMARY KEY,
+          event_type TEXT NOT NULL,
+          payment_reference TEXT,
+          processed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          payload_json TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS pending_registrations (
           email TEXT PRIMARY KEY,
           name TEXT NOT NULL,
@@ -377,6 +395,52 @@ function readJson(request) {
       }
     });
   });
+}
+
+function readRawBody(request) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let length = 0;
+
+    request.on("data", (chunk) => {
+      chunks.push(chunk);
+      length += chunk.length;
+      if (length > 2_000_000) {
+        request.destroy();
+        reject(new Error("Request body is too large."));
+      }
+    });
+
+    request.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    request.on("error", reject);
+  });
+}
+
+function parsePaddleSignature(signatureHeader) {
+  return String(signatureHeader || "")
+    .split(";")
+    .map((part) => part.trim().split("="))
+    .reduce((result, [key, value]) => {
+      if (key && value) result[key] = value;
+      return result;
+    }, {});
+}
+
+function verifyPaddleSignature(rawBody, signatureHeader) {
+  if (!paddleWebhookSecret) throw new Error("PADDLE_WEBHOOK_SECRET is not configured.");
+  const signature = parsePaddleSignature(signatureHeader);
+  if (!signature.ts || !signature.h1) return false;
+
+  const timestamp = Number(signature.ts);
+  if (!Number.isFinite(timestamp)) return false;
+  const ageSeconds = Math.abs(Math.floor(Date.now() / 1000) - timestamp);
+  if (ageSeconds > 300) return false;
+
+  const signedPayload = `${signature.ts}:${rawBody}`;
+  const expected = crypto.createHmac("sha256", paddleWebhookSecret).update(signedPayload).digest("hex");
+  const expectedBuffer = Buffer.from(expected, "hex");
+  const actualBuffer = Buffer.from(signature.h1, "hex");
+  return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
 }
 
 function escapeHtml(value) {
@@ -990,6 +1054,145 @@ async function handleListProductUnlocks(request, response) {
   sendJson(response, 200, { unlocks });
 }
 
+async function getExistingProductUnlock(userId, readingId, productKey) {
+  if (readingId) {
+    return db.get(
+      "SELECT * FROM product_unlocks WHERE user_id = ? AND reading_id = ? AND product_key = ? ORDER BY id DESC",
+      [userId, readingId, productKey],
+    );
+  }
+
+  return db.get(
+    "SELECT * FROM product_unlocks WHERE user_id = ? AND reading_id IS NULL AND product_key = ? ORDER BY id DESC",
+    [userId, productKey],
+  );
+}
+
+async function createProductUnlock({ userId, readingId, productKey, priceCents, currency = "USD", paymentReference = "" }) {
+  const normalizedReadingId = readingId || null;
+  const existing = await getExistingProductUnlock(userId, normalizedReadingId, productKey);
+
+  if (!existing) {
+    await db.run(
+      "INSERT INTO product_unlocks (user_id, reading_id, product_key, status, price_cents, currency, payment_provider, payment_reference) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [userId, normalizedReadingId, productKey, "unlocked", priceCents, currency, "paddle_webhook", paymentReference],
+    );
+  }
+
+  return getExistingProductUnlock(userId, normalizedReadingId, productKey);
+}
+
+function getPaddleCustomData(data) {
+  return data?.custom_data || data?.customData || {};
+}
+
+function getPaddleLineItems(data) {
+  return data?.items || data?.details?.line_items || data?.details?.lineItems || [];
+}
+
+function inferPaddlePurchaseType(data) {
+  const customData = getPaddleCustomData(data);
+  const purchaseType = customData.purchase_type || customData.purchaseType || "";
+  if (purchaseType === "snapshot") return "snapshot";
+  if (purchaseType === "full-report" || purchaseType === "fullReport") return "full-report";
+
+  const priceIds = getPaddleLineItems(data).map((item) => item.price?.id || item.price_id || item.priceId).filter(Boolean);
+  if (priceIds.includes(paddleSnapshotPriceId)) return "snapshot";
+  if (priceIds.includes(paddleFullReportPriceId)) return "full-report";
+  return "";
+}
+
+async function resolveWebhookUserAndReading(data) {
+  const customData = getPaddleCustomData(data);
+  const readingId = customData.reading_id || customData.readingId || "";
+  const userId = customData.user_id || customData.userId || "";
+  const email = customData.customer_email || customData.email || data?.customer?.email || data?.customer_email || "";
+
+  if (readingId) {
+    const readingRow = await db.get("SELECT id, user_id FROM readings WHERE id = ?", [readingId]);
+    if (readingRow) return { userId: readingRow.user_id, readingId: readingRow.id };
+  }
+
+  if (userId) return { userId, readingId: null };
+
+  if (email) {
+    const user = await db.get("SELECT id FROM users WHERE email = ?", [String(email).trim().toLowerCase()]);
+    if (user) return { userId: user.id, readingId: null };
+  }
+
+  return { userId: null, readingId: null };
+}
+
+async function handlePaddleFulfillment(payload) {
+  const eventType = payload.event_type || payload.eventType || "";
+  if (!["transaction.completed", "transaction.paid"].includes(eventType)) {
+    return { fulfilled: false, reason: `Ignored ${eventType || "unknown event"}.` };
+  }
+
+  const data = payload.data || {};
+  const purchaseType = inferPaddlePurchaseType(data);
+  const transactionId = data.id || payload.notification_id || payload.event_id || "";
+  const currency = data.currency_code || data.currencyCode || "USD";
+  const { userId, readingId } = await resolveWebhookUserAndReading(data);
+
+  if (!userId) return { fulfilled: false, reason: "No matching Shadow Chart user was found." };
+
+  if (purchaseType === "snapshot") {
+    const unlock = await createProductUnlock({
+      userId,
+      readingId,
+      productKey: SNAPSHOT_PRODUCT_KEY,
+      priceCents: SNAPSHOT_PRICE_CENTS,
+      currency,
+      paymentReference: transactionId,
+    });
+    return { fulfilled: true, productKey: SNAPSHOT_PRODUCT_KEY, unlockId: unlock.id };
+  }
+
+  if (purchaseType === "full-report") {
+    const unlock = await createProductUnlock({
+      userId,
+      readingId,
+      productKey: FULL_REPORT_PRODUCT_KEY,
+      priceCents: REPORT_PRICE_CENTS,
+      currency,
+      paymentReference: transactionId,
+    });
+    return { fulfilled: true, productKey: FULL_REPORT_PRODUCT_KEY, unlockId: unlock.id };
+  }
+
+  return { fulfilled: false, reason: "Purchase type was not recognized." };
+}
+
+async function handlePaddleWebhook(request, response) {
+  const rawBody = await readRawBody(request);
+  const signatureHeader = request.headers["paddle-signature"] || request.headers["Paddle-Signature"];
+
+  if (!verifyPaddleSignature(rawBody, signatureHeader)) {
+    sendJson(response, 401, { error: "Invalid Paddle webhook signature." });
+    return;
+  }
+
+  const payload = JSON.parse(rawBody);
+  const eventId = payload.event_id || payload.notification_id || `${payload.event_type || "event"}:${payload.data?.id || crypto.randomUUID()}`;
+  const eventType = payload.event_type || payload.eventType || "unknown";
+  const paymentReference = payload.data?.id || "";
+
+  const existing = await db.get("SELECT event_id FROM paddle_webhook_events WHERE event_id = ?", [eventId]);
+  if (existing) {
+    sendJson(response, 200, { ok: true, duplicate: true });
+    return;
+  }
+
+  const fulfillment = await handlePaddleFulfillment(payload);
+  await db.run(
+    "INSERT INTO paddle_webhook_events (event_id, event_type, payment_reference, payload_json) VALUES (?, ?, ?, ?)",
+    [eventId, eventType, paymentReference, rawBody],
+  );
+
+  sendJson(response, 200, { ok: true, fulfillment });
+}
+
 async function handleUnlockSnapshot(request, response) {
   const user = await requireUser(request, response);
   if (!user) return;
@@ -1196,6 +1399,12 @@ async function handleRequest(request, response) {
   if (pathname === "/api/paddle/config") {
     if (request.method !== "GET") return sendMethodNotAllowed(response);
     await handlePaddleConfig(request, response);
+    return;
+  }
+
+  if (pathname === "/api/paddle/webhook") {
+    if (request.method !== "POST") return sendMethodNotAllowed(response);
+    await handlePaddleWebhook(request, response);
     return;
   }
 

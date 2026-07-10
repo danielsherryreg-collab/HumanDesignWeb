@@ -87,12 +87,15 @@ async function openPaddleCheckout({ type, readingId }) {
     customer: state.user?.email ? { email: state.user.email } : undefined,
     settings: {
       displayMode: "overlay",
+      variant: "one-page",
       theme: "dark",
     },
     customData: {
       app: "shadow-chart",
       purchase_type: type,
       reading_id: String(readingId),
+      user_id: state.user?.id ? String(state.user.id) : "",
+      customer_email: state.user?.email || "",
     },
   });
 }
