@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
+const { Paddle, Environment } = require("@paddle/paddle-node-sdk");
 const { calculateReading } = require("./services/chart-engine.cjs");
 const { REPORT_CURRENCY, REPORT_PRICE_CENTS, buildReportInput } = require("./services/ai-report-schema.cjs");
 const { generateStructuredReport } = require("./services/openai-report-generator.cjs");
@@ -40,6 +41,7 @@ const SNAPSHOT_PRICE_CENTS = 99;
 const paddleWebhookSecret = process.env.PADDLE_WEBHOOK_SECRET || "";
 const paddleEnv = process.env.PADDLE_ENV || "";
 const paddleClientToken = process.env.PADDLE_CLIENT_TOKEN || "";
+const paddleApiKey = process.env.PADDLE_API_KEY || "";
 const paddleSnapshotPriceId = process.env.PADDLE_SNAPSHOT_PRICE_ID || "";
 const paddleFullReportPriceId = process.env.PADDLE_FULL_REPORT_PRICE_ID || "";
 const usePostgres = Boolean(process.env.DATABASE_URL);
@@ -133,6 +135,28 @@ function createDatabase() {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             unlocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             UNIQUE(user_id, reading_id, product_key)
+          );
+
+          CREATE TABLE IF NOT EXISTS paddle_customers (
+            customer_id TEXT PRIMARY KEY,
+            user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+            email TEXT NOT NULL,
+            name TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+
+          CREATE TABLE IF NOT EXISTS paddle_subscriptions (
+            subscription_id TEXT PRIMARY KEY,
+            customer_id TEXT NOT NULL REFERENCES paddle_customers(customer_id) ON DELETE CASCADE,
+            user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+            status TEXT NOT NULL,
+            price_id TEXT NOT NULL,
+            product_id TEXT NOT NULL,
+            scheduled_change_action TEXT,
+            scheduled_change_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           );
 
           CREATE TABLE IF NOT EXISTS paddle_webhook_events (
@@ -284,6 +308,31 @@ function createDatabase() {
           FOREIGN KEY (reading_id) REFERENCES readings(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS paddle_customers (
+          customer_id TEXT PRIMARY KEY,
+          user_id INTEGER,
+          email TEXT NOT NULL,
+          name TEXT,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS paddle_subscriptions (
+          subscription_id TEXT PRIMARY KEY,
+          customer_id TEXT NOT NULL,
+          user_id INTEGER,
+          status TEXT NOT NULL,
+          price_id TEXT NOT NULL,
+          product_id TEXT NOT NULL,
+          scheduled_change_action TEXT,
+          scheduled_change_at TEXT,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (customer_id) REFERENCES paddle_customers(customer_id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        );
+
         CREATE TABLE IF NOT EXISTS paddle_webhook_events (
           event_id TEXT PRIMARY KEY,
           event_type TEXT NOT NULL,
@@ -416,31 +465,23 @@ function readRawBody(request) {
   });
 }
 
-function parsePaddleSignature(signatureHeader) {
-  return String(signatureHeader || "")
-    .split(";")
-    .map((part) => part.trim().split("="))
-    .reduce((result, [key, value]) => {
-      if (key && value) result[key] = value;
-      return result;
-    }, {});
+function getPaddleSdkEnvironment() {
+  if (paddleEnv === "sandbox") return Environment.sandbox;
+  if (paddleEnv === "production") return Environment.production;
+  throw new Error("PADDLE_ENV must be set to sandbox or production.");
 }
 
-function verifyPaddleSignature(rawBody, signatureHeader) {
+function createPaddleClient({ requireApiKey = false } = {}) {
+  if (requireApiKey && !paddleApiKey) throw new Error("PADDLE_API_KEY is not configured on the server.");
+  return new Paddle(paddleApiKey || "webhook-verification-only", {
+    environment: getPaddleSdkEnvironment(),
+  });
+}
+
+async function unmarshalPaddleWebhook(rawBody, signatureHeader) {
   if (!paddleWebhookSecret) throw new Error("PADDLE_WEBHOOK_SECRET is not configured.");
-  const signature = parsePaddleSignature(signatureHeader);
-  if (!signature.ts || !signature.h1) return false;
-
-  const timestamp = Number(signature.ts);
-  if (!Number.isFinite(timestamp)) return false;
-  const ageSeconds = Math.abs(Math.floor(Date.now() / 1000) - timestamp);
-  if (ageSeconds > 300) return false;
-
-  const signedPayload = `${signature.ts}:${rawBody}`;
-  const expected = crypto.createHmac("sha256", paddleWebhookSecret).update(signedPayload).digest("hex");
-  const expectedBuffer = Buffer.from(expected, "hex");
-  const actualBuffer = Buffer.from(signature.h1, "hex");
-  return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
+  if (!signatureHeader) throw new Error("Paddle-Signature header is missing.");
+  return createPaddleClient().webhooks.unmarshal(rawBody, paddleWebhookSecret, signatureHeader);
 }
 
 function escapeHtml(value) {
@@ -1083,11 +1124,19 @@ async function createProductUnlock({ userId, readingId, productKey, priceCents, 
 }
 
 function getPaddleCustomData(data) {
-  return data?.custom_data || data?.customData || {};
+  return data?.customData || data?.custom_data || {};
 }
 
 function getPaddleLineItems(data) {
-  return data?.items || data?.details?.line_items || data?.details?.lineItems || [];
+  return data?.items || data?.details?.lineItems || data?.details?.line_items || [];
+}
+
+function getPaddleLineItemPriceId(item) {
+  return item?.price?.id || item?.priceId || item?.price_id || "";
+}
+
+function getPaddleLineItemProductId(item) {
+  return item?.price?.productId || item?.price?.product_id || item?.product?.id || item?.productId || item?.product_id || "";
 }
 
 function inferPaddlePurchaseType(data) {
@@ -1096,17 +1145,40 @@ function inferPaddlePurchaseType(data) {
   if (purchaseType === "snapshot") return "snapshot";
   if (purchaseType === "full-report" || purchaseType === "fullReport") return "full-report";
 
-  const priceIds = getPaddleLineItems(data).map((item) => item.price?.id || item.price_id || item.priceId).filter(Boolean);
+  const priceIds = getPaddleLineItems(data).map(getPaddleLineItemPriceId).filter(Boolean);
   if (priceIds.includes(paddleSnapshotPriceId)) return "snapshot";
   if (priceIds.includes(paddleFullReportPriceId)) return "full-report";
   return "";
+}
+
+function subscriptionGrantsPaidAccess(subscription) {
+  return ["active", "trialing"].includes(String(subscription?.status || ""));
+}
+
+function getPrimarySubscriptionItem(subscription) {
+  return (subscription?.items || []).find((item) => item?.price?.id || item?.priceId || item?.price_id) || subscription?.items?.[0] || {};
+}
+
+function getScheduledChange(subscription) {
+  return subscription?.scheduledChange || subscription?.scheduled_change || null;
+}
+
+async function findUserIdForPaddleData(data) {
+  const customData = getPaddleCustomData(data);
+  const userId = customData.user_id || customData.userId || "";
+  if (userId) return userId;
+
+  const email = customData.customer_email || customData.email || data?.email || data?.customer?.email || data?.customerEmail || data?.customer_email || "";
+  if (!email) return null;
+  const user = await db.get("SELECT id FROM users WHERE email = ?", [String(email).trim().toLowerCase()]);
+  return user?.id || null;
 }
 
 async function resolveWebhookUserAndReading(data) {
   const customData = getPaddleCustomData(data);
   const readingId = customData.reading_id || customData.readingId || "";
   const userId = customData.user_id || customData.userId || "";
-  const email = customData.customer_email || customData.email || data?.customer?.email || data?.customer_email || "";
+  const email = customData.customer_email || customData.email || data?.email || data?.customer?.email || data?.customerEmail || data?.customer_email || "";
 
   if (readingId) {
     const readingRow = await db.get("SELECT id, user_id FROM readings WHERE id = ?", [readingId]);
@@ -1123,24 +1195,113 @@ async function resolveWebhookUserAndReading(data) {
   return { userId: null, readingId: null };
 }
 
-async function handlePaddleFulfillment(payload) {
-  const eventType = payload.event_type || payload.eventType || "";
-  if (!["transaction.completed", "transaction.paid"].includes(eventType)) {
-    return { fulfilled: false, reason: `Ignored ${eventType || "unknown event"}.` };
+async function upsertPaddleCustomer(customer, explicitUserId = null) {
+  if (!customer?.id || !customer?.email) return null;
+  const userId = explicitUserId || (await findUserIdForPaddleData(customer));
+  await db.run(
+    `INSERT INTO paddle_customers (customer_id, user_id, email, name, updated_at)
+     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(customer_id) DO UPDATE SET
+       user_id = COALESCE(excluded.user_id, paddle_customers.user_id),
+       email = excluded.email,
+       name = COALESCE(excluded.name, paddle_customers.name),
+       updated_at = CURRENT_TIMESTAMP`,
+    [customer.id, userId || null, String(customer.email).trim().toLowerCase(), customer.name || null],
+  );
+  return db.get("SELECT * FROM paddle_customers WHERE customer_id = ?", [customer.id]);
+}
+
+async function ensurePaddleCustomer({ customerId, email = "", name = null, userId = null }) {
+  if (!customerId) return null;
+  const existing = await db.get("SELECT * FROM paddle_customers WHERE customer_id = ?", [customerId]);
+  if (existing) {
+    if (userId && !existing.user_id) {
+      await db.run("UPDATE paddle_customers SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?", [userId, customerId]);
+      return db.get("SELECT * FROM paddle_customers WHERE customer_id = ?", [customerId]);
+    }
+    return existing;
   }
 
-  const data = payload.data || {};
-  const purchaseType = inferPaddlePurchaseType(data);
-  const transactionId = data.id || payload.notification_id || payload.event_id || "";
-  const currency = data.currency_code || data.currencyCode || "USD";
-  const { userId, readingId } = await resolveWebhookUserAndReading(data);
+  const normalizedEmail = email ? String(email).trim().toLowerCase() : `unknown+${customerId}@shadowchart.local`;
+  await db.run(
+    "INSERT INTO paddle_customers (customer_id, user_id, email, name) VALUES (?, ?, ?, ?)",
+    [customerId, userId || null, normalizedEmail, name],
+  );
+  return db.get("SELECT * FROM paddle_customers WHERE customer_id = ?", [customerId]);
+}
 
-  if (!userId) return { fulfilled: false, reason: "No matching Shadow Chart user was found." };
+async function upsertPaddleSubscription(subscription) {
+  if (!subscription?.id || !subscription?.customerId) return null;
+  const customer = await ensurePaddleCustomer({ customerId: subscription.customerId });
+  const item = getPrimarySubscriptionItem(subscription);
+  const scheduledChange = getScheduledChange(subscription);
+  const priceId = getPaddleLineItemPriceId(item) || "unknown";
+  const productId = getPaddleLineItemProductId(item) || "unknown";
+
+  await db.run(
+    `INSERT INTO paddle_subscriptions
+       (subscription_id, customer_id, user_id, status, price_id, product_id, scheduled_change_action, scheduled_change_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(subscription_id) DO UPDATE SET
+       customer_id = excluded.customer_id,
+       user_id = COALESCE(excluded.user_id, paddle_subscriptions.user_id),
+       status = excluded.status,
+       price_id = excluded.price_id,
+       product_id = excluded.product_id,
+       scheduled_change_action = excluded.scheduled_change_action,
+       scheduled_change_at = excluded.scheduled_change_at,
+       updated_at = CURRENT_TIMESTAMP`,
+    [
+      subscription.id,
+      subscription.customerId,
+      customer?.user_id || null,
+      subscription.status || "unknown",
+      priceId,
+      productId,
+      scheduledChange?.action || null,
+      scheduledChange?.effectiveAt || scheduledChange?.resumeAt || null,
+    ],
+  );
+  return db.get("SELECT * FROM paddle_subscriptions WHERE subscription_id = ?", [subscription.id]);
+}
+
+async function handlePaddleCustomerEvent(event) {
+  const customer = await upsertPaddleCustomer(event.data);
+  return { mirrored: Boolean(customer), customerId: customer?.customer_id || event.data?.id || null };
+}
+
+async function handlePaddleSubscriptionEvent(event) {
+  const subscription = await upsertPaddleSubscription(event.data);
+  return {
+    mirrored: Boolean(subscription),
+    subscriptionId: subscription?.subscription_id || event.data?.id || null,
+    grantsAccess: subscriptionGrantsPaidAccess(subscription),
+  };
+}
+
+async function handlePaddleTransactionCompleted(event) {
+  const data = event.data || {};
+  const customData = getPaddleCustomData(data);
+  const userAndReading = await resolveWebhookUserAndReading(data);
+
+  if (data.customerId) {
+    await ensurePaddleCustomer({
+      customerId: data.customerId,
+      email: customData.customer_email || customData.email || "",
+      userId: userAndReading.userId,
+    });
+  }
+
+  const purchaseType = inferPaddlePurchaseType(data);
+  const transactionId = data.id || event.notificationId || event.eventId || "";
+  const currency = data.currencyCode || data.currency_code || "USD";
+
+  if (!userAndReading.userId) return { fulfilled: false, reason: "No matching Shadow Chart user was found." };
 
   if (purchaseType === "snapshot") {
     const unlock = await createProductUnlock({
-      userId,
-      readingId,
+      userId: userAndReading.userId,
+      readingId: userAndReading.readingId,
       productKey: SNAPSHOT_PRODUCT_KEY,
       priceCents: SNAPSHOT_PRICE_CENTS,
       currency,
@@ -1151,8 +1312,8 @@ async function handlePaddleFulfillment(payload) {
 
   if (purchaseType === "full-report") {
     const unlock = await createProductUnlock({
-      userId,
-      readingId,
+      userId: userAndReading.userId,
+      readingId: userAndReading.readingId,
       productKey: FULL_REPORT_PRODUCT_KEY,
       priceCents: REPORT_PRICE_CENTS,
       currency,
@@ -1161,22 +1322,40 @@ async function handlePaddleFulfillment(payload) {
     return { fulfilled: true, productKey: FULL_REPORT_PRODUCT_KEY, unlockId: unlock.id };
   }
 
-  return { fulfilled: false, reason: "Purchase type was not recognized." };
+  return { fulfilled: false, reason: "Transaction completed, but purchase type was not recognized." };
+}
+
+async function routePaddleEvent(event) {
+  switch (event.eventType) {
+    case "customer.created":
+    case "customer.updated":
+      return handlePaddleCustomerEvent(event);
+    case "subscription.created":
+    case "subscription.updated":
+    case "subscription.canceled":
+      return handlePaddleSubscriptionEvent(event);
+    case "transaction.completed":
+      return handlePaddleTransactionCompleted(event);
+    default:
+      return { ignored: true, reason: `Ignored ${event.eventType || "unknown event"}.` };
+  }
 }
 
 async function handlePaddleWebhook(request, response) {
   const rawBody = await readRawBody(request);
   const signatureHeader = request.headers["paddle-signature"] || request.headers["Paddle-Signature"];
 
-  if (!verifyPaddleSignature(rawBody, signatureHeader)) {
-    sendJson(response, 401, { error: "Invalid Paddle webhook signature." });
+  let event;
+  try {
+    event = await unmarshalPaddleWebhook(rawBody, signatureHeader);
+  } catch (error) {
+    sendJson(response, 401, { error: error.message || "Invalid Paddle webhook signature." });
     return;
   }
 
-  const payload = JSON.parse(rawBody);
-  const eventId = payload.event_id || payload.notification_id || `${payload.event_type || "event"}:${payload.data?.id || crypto.randomUUID()}`;
-  const eventType = payload.event_type || payload.eventType || "unknown";
-  const paymentReference = payload.data?.id || "";
+  const eventId = event.eventId || event.notificationId || `${event.eventType || "event"}:${event.data?.id || crypto.randomUUID()}`;
+  const eventType = event.eventType || "unknown";
+  const paymentReference = event.data?.id || "";
 
   const existing = await db.get("SELECT event_id FROM paddle_webhook_events WHERE event_id = ?", [eventId]);
   if (existing) {
@@ -1184,15 +1363,59 @@ async function handlePaddleWebhook(request, response) {
     return;
   }
 
-  const fulfillment = await handlePaddleFulfillment(payload);
+  const result = await routePaddleEvent(event);
   await db.run(
     "INSERT INTO paddle_webhook_events (event_id, event_type, payment_reference, payload_json) VALUES (?, ?, ?, ?)",
     [eventId, eventType, paymentReference, rawBody],
   );
 
-  sendJson(response, 200, { ok: true, fulfillment });
+  sendJson(response, 200, { ok: true, result });
 }
 
+async function getActivePaddleSubscriptionsForUser(userId) {
+  return db.all(
+    "SELECT * FROM paddle_subscriptions WHERE user_id = ? AND status IN ('active', 'trialing') ORDER BY updated_at DESC",
+    [userId],
+  );
+}
+
+async function handlePaddlePortalSession(request, response) {
+  const user = await requireUser(request, response);
+  if (!user) return;
+
+  const customer = await db.get(
+    "SELECT * FROM paddle_customers WHERE user_id = ? OR email = ? ORDER BY updated_at DESC LIMIT 1",
+    [user.id, String(user.email).trim().toLowerCase()],
+  );
+
+  if (!customer?.customer_id) {
+    sendJson(response, 404, { error: "No Paddle customer is connected to this account yet. Make a purchase first." });
+    return;
+  }
+
+  const subscriptions = await db.all(
+    "SELECT * FROM paddle_subscriptions WHERE customer_id = ? ORDER BY updated_at DESC",
+    [customer.customer_id],
+  );
+  const subscriptionIds = subscriptions.map((subscription) => subscription.subscription_id).filter(Boolean);
+  const session = await createPaddleClient({ requireApiKey: true }).customerPortalSessions.create(customer.customer_id, subscriptionIds);
+  const portalUrl = session?.urls?.general?.overview || session?.urls?.subscriptions?.[0]?.cancelSubscription || "";
+
+  if (!portalUrl) {
+    sendJson(response, 502, { error: "Paddle did not return a customer portal URL." });
+    return;
+  }
+
+  sendJson(response, 200, {
+    url: portalUrl,
+    customerId: customer.customer_id,
+    subscriptions: subscriptions.map((subscription) => ({
+      id: subscription.subscription_id,
+      status: subscription.status,
+      grantsAccess: subscriptionGrantsPaidAccess(subscription),
+    })),
+  });
+}
 async function handleUnlockSnapshot(request, response) {
   const user = await requireUser(request, response);
   if (!user) return;
@@ -1405,6 +1628,12 @@ async function handleRequest(request, response) {
   if (pathname === "/api/paddle/webhook") {
     if (request.method !== "POST") return sendMethodNotAllowed(response);
     await handlePaddleWebhook(request, response);
+    return;
+  }
+
+  if (pathname === "/api/paddle/portal-session") {
+    if (request.method !== "POST") return sendMethodNotAllowed(response);
+    await handlePaddlePortalSession(request, response);
     return;
   }
 

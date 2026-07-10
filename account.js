@@ -4,6 +4,7 @@ const cabinetContent = document.querySelector("#cabinet-content");
 const cabinetList = document.querySelector("#cabinet-list");
 const cabinetDetail = document.querySelector("#cabinet-detail");
 const cabinetStatus = document.querySelector("#cabinet-status");
+const cabinetPortal = document.querySelector("#cabinet-portal");
 const cabinetLogout = document.querySelector("#cabinet-logout");
 
 const state = {
@@ -171,6 +172,7 @@ function getReadingTitle(reading) {
 function renderLoginState() {
   cabinetLogin.classList.remove("is-hidden");
   cabinetContent.classList.add("is-hidden");
+  cabinetPortal.classList.add("is-hidden");
   cabinetLogout.classList.add("is-hidden");
   cabinetIntro.textContent = "Log in to open your saved readings.";
 }
@@ -681,6 +683,7 @@ async function loadCabinet() {
     cabinetIntro.textContent = `${user.email} - ${readings.length} saved reading${readings.length === 1 ? "" : "s"}.`;
     cabinetLogin.classList.add("is-hidden");
     cabinetContent.classList.remove("is-hidden");
+    cabinetPortal.classList.remove("is-hidden");
     cabinetLogout.classList.remove("is-hidden");
     renderReadingList();
     renderReadingDetail(readings[0]);
@@ -732,6 +735,21 @@ cabinetDetail.addEventListener("click", async (event) => {
   } catch (error) {
     cabinetStatus.textContent = error.message;
     button.disabled = false;
+  }
+});
+
+cabinetPortal.addEventListener("click", async () => {
+  try {
+    cabinetPortal.disabled = true;
+    cabinetStatus.textContent = "Opening Paddle billing portal...";
+    const { url } = await api("/api/paddle/portal-session", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    window.location.href = url;
+  } catch (error) {
+    cabinetStatus.textContent = error.message;
+    cabinetPortal.disabled = false;
   }
 });
 
