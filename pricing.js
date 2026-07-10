@@ -83,7 +83,7 @@ function renderPricing() {
             ${tier.features.map((feature) => `<li>${feature}</li>`).join("")}
           </ul>
           <button class="button button--primary" type="button" data-price-key="${tier.priceKey}" ${priceId ? "" : "disabled"}>
-            Subscribe
+            Buy
           </button>
         </article>
       `;
