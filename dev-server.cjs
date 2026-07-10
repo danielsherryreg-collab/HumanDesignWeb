@@ -35,7 +35,11 @@ const resendFrom = process.env.RESEND_FROM_EMAIL || "Shadow Chart <onboarding@re
 const reportEmailDisabled = process.env.DISABLE_REPORT_EMAIL === "true";
 const sessionCookieName = "shadow_session";
 const SNAPSHOT_PRODUCT_KEY = "extended-shadow-snapshot";
-const SNAPSHOT_PRICE_CENTS = 499;
+const SNAPSHOT_PRICE_CENTS = 99;
+const paddleEnv = process.env.PADDLE_ENV || "sandbox";
+const paddleClientToken = process.env.PADDLE_CLIENT_TOKEN || "";
+const paddleSnapshotPriceId = process.env.PADDLE_SNAPSHOT_PRICE_ID || "";
+const paddleFullReportPriceId = process.env.PADDLE_FULL_REPORT_PRICE_ID || "";
 const usePostgres = Boolean(process.env.DATABASE_URL);
 
 fs.mkdirSync(dataDir, { recursive: true });
@@ -768,6 +772,22 @@ async function handleMe(request, response) {
   sendJson(response, 200, { user: publicUser(await getCurrentUser(request)) });
 }
 
+async function handlePaddleConfig(request, response) {
+  const user = await requireUser(request, response);
+  if (!user) return;
+
+  sendJson(response, 200, {
+    paddle: {
+      environment: paddleEnv,
+      clientToken: paddleClientToken,
+      priceIds: {
+        snapshot: paddleSnapshotPriceId,
+        fullReport: paddleFullReportPriceId,
+      },
+    },
+  });
+}
+
 async function handleSaveReading(request, response) {
   const user = await requireUser(request, response);
   if (!user) return;
@@ -869,7 +889,7 @@ async function handleCreateFullReport(request, response) {
   const user = await requireUser(request, response);
   if (!user) return;
 
-  const { readingId } = await readJson(request);
+  const { readingId, checkoutId } = await readJson(request);
   let readingRow = readingId
     ? await db.get("SELECT id, reading_json FROM readings WHERE id = ? AND user_id = ?", [readingId, user.id])
     : null;
@@ -954,7 +974,7 @@ async function handleUnlockSnapshot(request, response) {
   const user = await requireUser(request, response);
   if (!user) return;
 
-  const { readingId } = await readJson(request);
+  const { readingId, checkoutId } = await readJson(request);
   const readingRow = readingId
     ? await db.get("SELECT id FROM readings WHERE id = ? AND user_id = ?", [readingId, user.id])
     : null;
@@ -972,7 +992,7 @@ async function handleUnlockSnapshot(request, response) {
   if (!existing) {
     await db.run(
       "INSERT INTO product_unlocks (user_id, reading_id, product_key, status, price_cents, currency, payment_provider, payment_reference) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [user.id, readingRow.id, SNAPSHOT_PRODUCT_KEY, "unlocked", SNAPSHOT_PRICE_CENTS, "USD", "manual_preview", "checkout-placeholder"],
+      [user.id, readingRow.id, SNAPSHOT_PRODUCT_KEY, "unlocked", SNAPSHOT_PRICE_CENTS, "USD", "paddle_checkout", checkoutId || "checkout-callback"],
     );
   }
 
@@ -1150,6 +1170,12 @@ async function handleRequest(request, response) {
   if (pathname === "/api/me") {
     if (request.method !== "GET") return sendMethodNotAllowed(response);
     await handleMe(request, response);
+    return;
+  }
+
+  if (pathname === "/api/paddle/config") {
+    if (request.method !== "GET") return sendMethodNotAllowed(response);
+    await handlePaddleConfig(request, response);
     return;
   }
 

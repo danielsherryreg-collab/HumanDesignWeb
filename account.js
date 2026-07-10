@@ -11,6 +11,9 @@ const state = {
   readings: [],
   fullReports: [],
   snapshotUnlocks: [],
+  paddle: null,
+  paddleReady: false,
+  pendingCheckout: null,
   selectedId: null,
 };
 
@@ -27,6 +30,110 @@ async function api(path, options = {}) {
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || "Request failed.");
   return result;
+}
+
+function getCheckoutId(data) {
+  return data?.data?.id || data?.data?.checkout?.id || data?.data?.transaction_id || data?.data?.transactionId || "";
+}
+
+async function loadPaddleConfig() {
+  const { paddle } = await api("/api/paddle/config", {
+    method: "GET",
+    headers: {},
+  });
+  state.paddle = paddle;
+  return paddle;
+}
+
+function handlePaddleEvent(data) {
+  const eventName = String(data?.name || data?.event || "");
+  if (!eventName.includes("checkout.completed") && !eventName.includes("transaction.completed")) return;
+  if (!state.pendingCheckout || state.pendingCheckout.completed) return;
+
+  state.pendingCheckout.completed = true;
+  finalizePaddlePurchase(state.pendingCheckout, data).catch((error) => {
+    cabinetStatus.textContent = error.message || "Paddle checkout finished, but fulfillment failed.";
+  });
+}
+
+async function ensurePaddleReady() {
+  const paddle = state.paddle || (await loadPaddleConfig());
+  if (!paddle?.clientToken) throw new Error("PADDLE_CLIENT_TOKEN is not configured.");
+  if (!window.Paddle) throw new Error("Paddle.js did not load. Refresh the page and try again.");
+
+  if (!state.paddleReady) {
+    if (paddle.environment === "sandbox") window.Paddle.Environment.set("sandbox");
+    window.Paddle.Initialize({
+      token: paddle.clientToken,
+      eventCallback: handlePaddleEvent,
+    });
+    state.paddleReady = true;
+  }
+
+  return paddle;
+}
+
+async function openPaddleCheckout({ type, readingId }) {
+  const paddle = await ensurePaddleReady();
+  const priceId = type === "snapshot" ? paddle.priceIds?.snapshot : paddle.priceIds?.fullReport;
+  if (!priceId) throw new Error(type === "snapshot" ? "PADDLE_SNAPSHOT_PRICE_ID is not configured." : "PADDLE_FULL_REPORT_PRICE_ID is not configured.");
+
+  state.pendingCheckout = { type, readingId, completed: false };
+  window.Paddle.Checkout.open({
+    items: [{ priceId, quantity: 1 }],
+    customer: state.user?.email ? { email: state.user.email } : undefined,
+    customData: {
+      app: "shadow-chart",
+      purchase_type: type,
+      reading_id: String(readingId),
+    },
+  });
+}
+
+async function unlockSnapshotAfterCheckout(readingId, checkoutId = "") {
+  const { unlock } = await api("/api/snapshot/unlock", {
+    method: "POST",
+    body: JSON.stringify({ readingId, checkoutId }),
+  });
+  state.snapshotUnlocks = [
+    unlock,
+    ...state.snapshotUnlocks.filter(
+      (item) => !(String(item.readingId) === String(unlock.readingId) && item.productKey === unlock.productKey),
+    ),
+  ];
+  state.selectedId = unlock.readingId || state.selectedId;
+  selectReading(state.selectedId);
+  cabinetStatus.textContent = "Payment confirmed. Extended Shadow Snapshot is unlocked.";
+}
+
+async function createFullReportAfterCheckout(readingId) {
+  cabinetStatus.textContent = "Payment confirmed. Generating full report and preparing PDF email...";
+  const { fullReport, emailDelivery } = await api("/api/full-reports", {
+    method: "POST",
+    body: JSON.stringify({ readingId }),
+  });
+  state.fullReports = [fullReport, ...state.fullReports.filter((report) => String(report.id) !== String(fullReport.id))];
+  state.selectedId = fullReport.readingId || state.selectedId;
+  selectReading(state.selectedId);
+  if (emailDelivery?.sent) {
+    cabinetStatus.textContent = "Full report is ready. PDF was sent to your email.";
+  } else if (emailDelivery?.error) {
+    cabinetStatus.textContent = `Full report is ready, but email failed: ${emailDelivery.error}`;
+  } else {
+    cabinetStatus.textContent = `Full report is ready. ${emailDelivery?.reason || "PDF can be downloaded from the report."}`;
+  }
+}
+
+async function finalizePaddlePurchase(pendingCheckout, data) {
+  const checkoutId = getCheckoutId(data);
+  if (pendingCheckout.type === "snapshot") {
+    await unlockSnapshotAfterCheckout(pendingCheckout.readingId, checkoutId);
+    return;
+  }
+
+  if (pendingCheckout.type === "full-report") {
+    await createFullReportAfterCheckout(pendingCheckout.readingId);
+  }
 }
 
 function escapeHtml(value) {
@@ -317,12 +424,12 @@ function renderSnapshotOffer(reading, unlocked) {
         <p class="panel-kicker">Extended Shadow Snapshot</p>
         <h3>Unlock the 9-point interpretation</h3>
         <p>
-          A low-risk paid upgrade for this saved reading: 9 focused psychological points
+          A low-risk test upgrade for this saved reading: 9 focused psychological points
           based on the numbered birth chart map.
         </p>
       </div>
       <div class="snapshot-offer__price">
-        <strong>$4.99</strong>
+        <strong>$0.99</strong>
         <button class="button button--primary" type="button" data-unlock-snapshot="${escapeHtml(reading.id)}">
           Buy / Unlock
         </button>
@@ -510,7 +617,7 @@ function renderReadingDetail(reading) {
         </p>
       </div>
       <button class="button button--primary" type="button" data-create-full-report="${escapeHtml(reading.id)}">
-        ${fullReport ? "Regenerate & Email PDF" : "Generate Full Report"}
+        ${fullReport ? "Regenerate & Email PDF" : "Buy Full Report"}
       </button>
     </div>
 
@@ -555,6 +662,7 @@ async function loadCabinet() {
       method: "GET",
       headers: {},
     });
+    await loadPaddleConfig();
 
     state.readings = readings;
     state.fullReports = fullReports;
@@ -584,23 +692,11 @@ cabinetDetail.addEventListener("click", async (event) => {
   if (snapshotButton) {
     try {
       snapshotButton.disabled = true;
-      cabinetStatus.textContent = "Unlocking Extended Shadow Snapshot...";
-      const { unlock } = await api("/api/snapshot/unlock", {
-        method: "POST",
-        body: JSON.stringify({ readingId: snapshotButton.dataset.unlockSnapshot }),
-      });
-      state.snapshotUnlocks = [
-        unlock,
-        ...state.snapshotUnlocks.filter(
-          (item) => !(String(item.readingId) === String(unlock.readingId) && item.productKey === unlock.productKey),
-        ),
-      ];
-      state.selectedId = unlock.readingId || state.selectedId;
-      selectReading(state.selectedId);
-      cabinetStatus.textContent = "Extended Shadow Snapshot is unlocked for this reading.";
+      cabinetStatus.textContent = "Opening secure Paddle checkout...";
+      await openPaddleCheckout({ type: "snapshot", readingId: snapshotButton.dataset.unlockSnapshot });
+      snapshotButton.disabled = false;
     } catch (error) {
       cabinetStatus.textContent = error.message;
-    } finally {
       snapshotButton.disabled = false;
     }
     return;
@@ -611,24 +707,20 @@ cabinetDetail.addEventListener("click", async (event) => {
 
   try {
     button.disabled = true;
-    cabinetStatus.textContent = "Generating full report and preparing PDF email...";
-    const { fullReport, emailDelivery } = await api("/api/full-reports", {
-      method: "POST",
-      body: JSON.stringify({ readingId: button.dataset.createFullReport }),
-    });
-    state.fullReports = [fullReport, ...state.fullReports.filter((report) => String(report.id) !== String(fullReport.id))];
-    state.selectedId = fullReport.readingId || state.selectedId;
-    selectReading(state.selectedId);
-    if (emailDelivery?.sent) {
-      cabinetStatus.textContent = "Full report is ready. PDF was sent to your email.";
-    } else if (emailDelivery?.error) {
-      cabinetStatus.textContent = `Full report is ready, but email failed: ${emailDelivery.error}`;
+    const readingId = button.dataset.createFullReport;
+    const reading = state.readings.find((item) => String(item.id) === String(readingId));
+    const fullReport = reading ? findFullReport(reading) : null;
+
+    if (fullReport) {
+      cabinetStatus.textContent = "Regenerating full report and preparing PDF email...";
+      await createFullReportAfterCheckout(readingId);
     } else {
-      cabinetStatus.textContent = `Full report is ready. ${emailDelivery?.reason || "PDF can be downloaded from the report."}`;
+      cabinetStatus.textContent = "Opening secure Paddle checkout...";
+      await openPaddleCheckout({ type: "full-report", readingId });
+      button.disabled = false;
     }
   } catch (error) {
     cabinetStatus.textContent = error.message;
-  } finally {
     button.disabled = false;
   }
 });
@@ -644,6 +736,9 @@ cabinetLogout.addEventListener("click", async () => {
     state.readings = [];
     state.fullReports = [];
     state.snapshotUnlocks = [];
+    state.paddle = null;
+    state.paddleReady = false;
+    state.pendingCheckout = null;
     state.selectedId = null;
     renderLoginState();
   }

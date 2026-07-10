@@ -1,20 +1,21 @@
 {
-  "name": "human-design-web",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Shadow Chart web app with birth chart mini readings, accounts, PostgreSQL/SQLite storage, and Resend email verification.",
-  "main": "dev-server.cjs",
-  "scripts": {
-    "start": "node dev-server.cjs",
-    "check": "node --check dev-server.cjs && node --check services/chart-engine.cjs && node --check services/ai-report-schema.cjs && node --check services/openai-report-generator.cjs && node --check services/pdf-report.cjs && node --check script.js && node --check account.js"
-  },
-  "engines": {
-    "node": ">=24"
-  },
-  "dependencies": {
-    "astronomy-engine": "^2.1.19",
-    "axios": "^1.18.1",
-    "geo-tz": "^8.1.7",
-    "pg": "^8.16.3"
-  }
+    "name":  "human-design-web",
+    "version":  "1.0.0",
+    "private":  true,
+    "description":  "Shadow Chart web app with birth chart mini readings, accounts, PostgreSQL/SQLite storage, and Resend email verification.",
+    "main":  "dev-server.cjs",
+    "scripts":  {
+                    "start":  "node dev-server.cjs",
+                    "check":  "node --check dev-server.cjs \u0026\u0026 node --check services/chart-engine.cjs \u0026\u0026 node --check services/ai-report-schema.cjs \u0026\u0026 node --check services/openai-report-generator.cjs \u0026\u0026 node --check services/pdf-report.cjs \u0026\u0026 node --check script.js \u0026\u0026 node --check account.js",
+                    "paddle:create-catalog":  "node scripts/create-paddle-catalog.cjs"
+                },
+    "engines":  {
+                    "node":  "\u003e=24"
+                },
+    "dependencies":  {
+                         "astronomy-engine":  "^2.1.19",
+                         "axios":  "^1.18.1",
+                         "geo-tz":  "^8.1.7",
+                         "pg":  "^8.16.3"
+                     }
 }
