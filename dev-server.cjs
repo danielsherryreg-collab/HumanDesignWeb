@@ -836,10 +836,16 @@ async function handleCreateFullReport(request, response) {
   if (!user) return;
 
   const { readingId } = await readJson(request);
-  const readingRow = await db.get("SELECT id, reading_json FROM readings WHERE id = ? AND user_id = ?", [readingId, user.id]);
+  let readingRow = readingId
+    ? await db.get("SELECT id, reading_json FROM readings WHERE id = ? AND user_id = ?", [readingId, user.id])
+    : null;
 
   if (!readingRow) {
-    sendJson(response, 404, { error: "Saved reading was not found." });
+    readingRow = await db.get("SELECT id, reading_json FROM readings WHERE user_id = ? ORDER BY id DESC LIMIT 1", [user.id]);
+  }
+
+  if (!readingRow) {
+    sendJson(response, 404, { error: "No saved mini reading was found. Generate and save a mini reading first." });
     return;
   }
 

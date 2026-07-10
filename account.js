@@ -371,6 +371,7 @@ cabinetDetail.addEventListener("click", async (event) => {
       body: JSON.stringify({ readingId: button.dataset.createFullReport }),
     });
     state.fullReports = [fullReport, ...state.fullReports.filter((report) => String(report.id) !== String(fullReport.id))];
+    state.selectedId = fullReport.readingId || state.selectedId;
     selectReading(state.selectedId);
     if (emailDelivery?.sent) {
       cabinetStatus.textContent = "Full report is ready. PDF was sent to your email.";
