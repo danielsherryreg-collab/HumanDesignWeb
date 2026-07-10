@@ -787,6 +787,12 @@ ul {
   margin-bottom: 18px;
 }
 
+.structured-report__download {
+  width: fit-content;
+  margin-top: 14px;
+  text-decoration: none;
+}
+
 .structured-report h3,
 .rave-chart-panel h3 {
   font-size: 1.7rem;

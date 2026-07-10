@@ -193,6 +193,9 @@ function renderStructuredFullReport(report) {
         <p class="panel-kicker">Structured AI report</p>
         <h3>${escapeHtml(report.report.identity?.title || "Full Report Draft")}</h3>
         <p>${escapeHtml(report.report.identity?.oneSentenceSummary || "")}</p>
+        <a class="button button--ghost structured-report__download" href="/api/full-reports/${escapeHtml(report.id)}/pdf">
+          Download PDF
+        </a>
       </div>
       <div class="structured-ui-cards">
         ${uiCards
@@ -295,7 +298,7 @@ function renderReadingDetail(reading) {
         </p>
       </div>
       <button class="button button--primary" type="button" data-create-full-report="${escapeHtml(reading.id)}">
-        ${fullReport ? "Refresh Structured Report" : "Generate Full Report Draft"}
+        ${fullReport ? "Regenerate & Email PDF" : "Generate Full Report"}
       </button>
     </div>
 
@@ -362,14 +365,20 @@ cabinetDetail.addEventListener("click", async (event) => {
 
   try {
     button.disabled = true;
-    cabinetStatus.textContent = "Generating structured report draft...";
-    const { fullReport } = await api("/api/full-reports", {
+    cabinetStatus.textContent = "Generating full report and preparing PDF email...";
+    const { fullReport, emailDelivery } = await api("/api/full-reports", {
       method: "POST",
       body: JSON.stringify({ readingId: button.dataset.createFullReport }),
     });
     state.fullReports = [fullReport, ...state.fullReports.filter((report) => String(report.id) !== String(fullReport.id))];
     selectReading(state.selectedId);
-    cabinetStatus.textContent = "Structured report draft is ready.";
+    if (emailDelivery?.sent) {
+      cabinetStatus.textContent = "Full report is ready. PDF was sent to your email.";
+    } else if (emailDelivery?.error) {
+      cabinetStatus.textContent = `Full report is ready, but email failed: ${emailDelivery.error}`;
+    } else {
+      cabinetStatus.textContent = `Full report is ready. ${emailDelivery?.reason || "PDF can be downloaded from the report."}`;
+    }
   } catch (error) {
     cabinetStatus.textContent = error.message;
   } finally {

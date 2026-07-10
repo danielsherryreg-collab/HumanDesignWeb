@@ -6,6 +6,7 @@ const { DatabaseSync } = require("node:sqlite");
 const { calculateReading } = require("./services/chart-engine.cjs");
 const { REPORT_CURRENCY, REPORT_PRICE_CENTS, buildReportInput } = require("./services/ai-report-schema.cjs");
 const { generateStructuredReport } = require("./services/openai-report-generator.cjs");
+const { renderFullReportPdf } = require("./services/pdf-report.cjs");
 
 const root = path.resolve(__dirname);
 const dataDir = path.join(root, "data");
@@ -31,6 +32,7 @@ const port = Number(process.env.PORT || 4177);
 const host = process.env.HOST || "0.0.0.0";
 const resendApiKey = process.env.RESEND_API_KEY;
 const resendFrom = process.env.RESEND_FROM_EMAIL || "Shadow Chart <onboarding@resend.dev>";
+const reportEmailDisabled = process.env.DISABLE_REPORT_EMAIL === "true";
 const sessionCookieName = "shadow_session";
 const usePostgres = Boolean(process.env.DATABASE_URL);
 
@@ -426,7 +428,7 @@ async function createSession(response, userId) {
   setSessionCookie(response, token, expiresAt);
 }
 
-async function sendEmail({ to, subject, html, text }) {
+async function sendEmail({ to, subject, html, text, attachments = [] }) {
   if (!resendApiKey) {
     throw new Error("RESEND_API_KEY is not configured on the server.");
   }
@@ -443,6 +445,7 @@ async function sendEmail({ to, subject, html, text }) {
       subject,
       html,
       text,
+      ...(attachments.length ? { attachments } : {}),
     }),
   });
 
@@ -775,6 +778,59 @@ function publicFullReport(row) {
   };
 }
 
+function getPdfFilename(user, reportId) {
+  const emailName = String(user.email || "shadow-chart").split("@")[0].replace(/[^a-z0-9_-]+/gi, "-");
+  return `shadow-chart-full-report-${emailName}-${reportId}.pdf`;
+}
+
+function renderFullReportEmail({ user, reading, report }) {
+  const title = report.identity?.title || "Your Shadow Chart full report is ready";
+  const summary = report.identity?.oneSentenceSummary || "Your full dark astrology report has been generated.";
+
+  return `
+    <div style="margin: 0; padding: 32px; background: #050505; color: #efe8da; font-family: Arial, sans-serif;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 640px; margin: 0 auto; background: #100e0f; border: 1px solid #2b2525; border-radius: 8px;">
+        <tr>
+          <td style="padding: 28px;">
+            <p style="margin: 0 0 10px; color: #b9975b; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;">Shadow Chart</p>
+            <h1 style="margin: 0 0 12px; color: #efe8da; font-size: 30px;">${escapeHtml(title)}</h1>
+            <p style="margin: 0 0 18px; color: #c9beb0; line-height: 1.7;">${escapeHtml(summary)}</p>
+            <p style="margin: 0 0 18px; color: #b9aea0;">Birth data: ${escapeHtml(reading.birthDate || "Unknown")} - ${escapeHtml(reading.birthTime || "Unknown")} - ${escapeHtml(reading.birthPlace || "Unknown")}</p>
+            <p style="margin: 0; color: #b9975b;">Your PDF is attached to this email. You can also download it from your personal cabinet.</p>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `;
+}
+
+async function sendFullReportPdfEmail({ user, reading, report, reportId }) {
+  if (reportEmailDisabled) {
+    return { sent: false, skipped: true, reason: "Report email delivery is disabled." };
+  }
+
+  if (!resendApiKey) {
+    return { sent: false, skipped: true, reason: "RESEND_API_KEY is not configured on the server." };
+  }
+
+  const pdfBuffer = renderFullReportPdf({ user, reading, report });
+  const filename = getPdfFilename(user, reportId);
+  const result = await sendEmail({
+    to: user.email,
+    subject: report.email?.subject || "Your Shadow Chart full report is ready",
+    html: renderFullReportEmail({ user, reading, report }),
+    text: `${report.identity?.title || "Your Shadow Chart full report is ready"}\n\n${report.identity?.oneSentenceSummary || ""}\n\nYour PDF is attached to this email.`,
+    attachments: [
+      {
+        filename,
+        content: pdfBuffer.toString("base64"),
+      },
+    ],
+  });
+
+  return { sent: true, id: result.id };
+}
+
 async function handleCreateFullReport(request, response) {
   const user = await requireUser(request, response);
   if (!user) return;
@@ -807,9 +863,16 @@ async function handleCreateFullReport(request, response) {
     errorMessage: generation.errorMessage,
   });
 
-  // Future integration points: Stripe checkout before generation, PDF generation after report_json, Resend email delivery after ready.
   const saved = await db.get("SELECT * FROM full_reports WHERE id = ? AND user_id = ?", [reportId, user.id]);
-  sendJson(response, 201, { fullReport: publicFullReport(saved) });
+  let emailDelivery = { sent: false, skipped: true, reason: "Email delivery was not attempted." };
+
+  try {
+    emailDelivery = await sendFullReportPdfEmail({ user, reading, report, reportId });
+  } catch (error) {
+    emailDelivery = { sent: false, skipped: false, error: error.message || "Full report email failed." };
+  }
+
+  sendJson(response, 201, { fullReport: publicFullReport(saved), emailDelivery });
 }
 
 async function handleListFullReports(request, response) {
@@ -821,6 +884,31 @@ async function handleListFullReports(request, response) {
   ).map(publicFullReport);
 
   sendJson(response, 200, { fullReports: reports });
+}
+
+async function handleDownloadFullReportPdf(request, response, reportId) {
+  const user = await requireUser(request, response);
+  if (!user) return;
+
+  const reportRow = await db.get("SELECT * FROM full_reports WHERE id = ? AND user_id = ?", [reportId, user.id]);
+  if (!reportRow || !reportRow.report_json) {
+    sendJson(response, 404, { error: "Full report was not found." });
+    return;
+  }
+
+  const readingRow = reportRow.reading_id
+    ? await db.get("SELECT id, reading_json FROM readings WHERE id = ? AND user_id = ?", [reportRow.reading_id, user.id])
+    : null;
+  const reading = readingRow ? JSON.parse(readingRow.reading_json) : {};
+  const report = JSON.parse(reportRow.report_json);
+  const pdfBuffer = renderFullReportPdf({ user, reading, report });
+
+  response.writeHead(200, {
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `attachment; filename="${getPdfFilename(user, reportRow.id)}"`,
+    "Content-Length": pdfBuffer.length,
+  });
+  response.end(pdfBuffer);
 }
 
 async function handleCalculateReading(request, response) {
@@ -971,6 +1059,13 @@ async function handleRequest(request, response) {
     if (request.method === "GET") return handleListReadings(request, response);
     if (request.method === "POST") return handleSaveReading(request, response);
     return sendMethodNotAllowed(response);
+  }
+
+  const fullReportPdfMatch = pathname.match(/^\/api\/full-reports\/([^/]+)\/pdf$/);
+  if (fullReportPdfMatch) {
+    if (request.method !== "GET") return sendMethodNotAllowed(response);
+    await handleDownloadFullReportPdf(request, response, fullReportPdfMatch[1]);
+    return;
   }
 
   if (pathname === "/api/full-reports") {

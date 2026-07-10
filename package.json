@@ -6,7 +6,7 @@
   "main": "dev-server.cjs",
   "scripts": {
     "start": "node dev-server.cjs",
-    "check": "node --check dev-server.cjs && node --check services/chart-engine.cjs && node --check services/ai-report-schema.cjs && node --check services/openai-report-generator.cjs && node --check script.js && node --check account.js"
+    "check": "node --check dev-server.cjs && node --check services/chart-engine.cjs && node --check services/ai-report-schema.cjs && node --check services/openai-report-generator.cjs && node --check services/pdf-report.cjs && node --check script.js && node --check account.js"
   },
   "engines": {
     "node": ">=24"

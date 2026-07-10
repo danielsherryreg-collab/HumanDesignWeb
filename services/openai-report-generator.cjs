@@ -50,6 +50,14 @@ function ensureReportShape(report) {
 }
 
 async function generateOpenAiReport({ promptInput, fallbackReport }) {
+  if (process.env.DISABLE_OPENAI_REPORT === "true") {
+    return {
+      report: fallbackReport,
+      provider: "mock_disabled_openai",
+      errorMessage: "",
+    };
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return {
