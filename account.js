@@ -484,8 +484,6 @@ function renderReadingDetail(reading) {
     </div>
 
     ${renderChartSnapshot(reading)}
-    ${renderNatalChartWheel(reading, snapshotUnlocked)}
-    ${renderSnapshotOffer(reading, snapshotUnlocked)}
 
     <div class="cabinet-reading-cards">
       ${cards
@@ -515,6 +513,9 @@ function renderReadingDetail(reading) {
         ${fullReport ? "Regenerate & Email PDF" : "Generate Full Report"}
       </button>
     </div>
+
+    ${renderNatalChartWheel(reading, snapshotUnlocked)}
+    ${renderSnapshotOffer(reading, snapshotUnlocked)}
 
     ${renderStructuredFullReport(fullReport)}
   `;
