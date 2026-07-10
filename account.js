@@ -10,6 +10,7 @@ const state = {
   user: null,
   readings: [],
   fullReports: [],
+  snapshotUnlocks: [],
   selectedId: null,
 };
 
@@ -115,6 +116,17 @@ function findFullReport(reading) {
   return state.fullReports.find((report) => String(report.readingId) === String(reading.id));
 }
 
+function findSnapshotUnlock(reading) {
+  if (!reading) return null;
+  return state.snapshotUnlocks.find(
+    (unlock) => String(unlock.readingId) === String(reading.id) && unlock.productKey === "extended-shadow-snapshot",
+  );
+}
+
+function isSnapshotUnlocked(reading) {
+  return Boolean(findSnapshotUnlock(reading));
+}
+
 const zodiacSigns = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
 const zodiacGlyphs = {
   Aries: "Ar",
@@ -171,7 +183,7 @@ function polarPoint(cx, cy, radius, longitude) {
   };
 }
 
-function renderNatalChartWheel(reading) {
+function renderNatalChartWheel(reading, unlocked = false) {
   const chart = reading.chart;
   if (!chart?.planets) return "";
 
@@ -257,25 +269,63 @@ function renderNatalChartWheel(reading) {
         <g>${planetLabels}</g>
         <g>${signLabels}</g>
       </svg>
-      <ol class="natal-legend">${legend}</ol>
+      ${unlocked ? `<ol class="natal-legend">${legend}</ol>` : renderLockedSnapshotPanel(reading)}
     </section>
   `;
 }
 
-function renderSnapshotOffer() {
+function renderLockedSnapshotPanel(reading) {
+  return `
+    <div class="snapshot-locked-panel">
+      <p class="panel-kicker">Extended Shadow Snapshot</p>
+      <h4>9-point interpretation is locked</h4>
+      <p>
+        Unlock this saved reading to open the 9 focused interpretation points beneath
+        the numbered wheel.
+      </p>
+      <button class="button button--primary" type="button" data-unlock-snapshot="${escapeHtml(reading.id)}">
+        Buy Extended Snapshot
+      </button>
+    </div>
+  `;
+}
+
+function renderSnapshotOffer(reading, unlocked) {
+  if (unlocked) {
+    const unlock = findSnapshotUnlock(reading);
+    return `
+      <div class="snapshot-offer snapshot-offer--unlocked">
+        <div>
+          <p class="panel-kicker">Extended Shadow Snapshot</p>
+          <h3>9-point interpretation unlocked</h3>
+          <p>
+            This Snapshot is already unlocked for this saved reading. The price is hidden
+            because the access status is now stored on your account.
+          </p>
+        </div>
+        <div class="snapshot-offer__status">
+          <span>Purchased / Unlocked</span>
+          <small>${escapeHtml(unlock?.unlockedAt ? formatDate(unlock.unlockedAt) : "Active")}</small>
+        </div>
+      </div>
+    `;
+  }
+
   return `
     <div class="snapshot-offer">
       <div>
         <p class="panel-kicker">Extended Shadow Snapshot</p>
-        <h3>9-point interpretation unlocked</h3>
+        <h3>Unlock the 9-point interpretation</h3>
         <p>
-          This section is the foundation for the $4.99 Snapshot. Once checkout is
-          connected, new accounts will unlock it after purchase.
+          A low-risk paid upgrade for this saved reading: 9 focused psychological points
+          based on the numbered birth chart map.
         </p>
       </div>
       <div class="snapshot-offer__price">
         <strong>$4.99</strong>
-        <button class="button button--ghost" type="button" disabled>Unlocked Preview</button>
+        <button class="button button--primary" type="button" data-unlock-snapshot="${escapeHtml(reading.id)}">
+          Buy / Unlock
+        </button>
       </div>
     </div>
   `;
@@ -407,6 +457,7 @@ function renderReadingDetail(reading) {
 
   const cards = Array.isArray(reading.cards) ? reading.cards : [];
   const fullReport = findFullReport(reading);
+  const snapshotUnlocked = isSnapshotUnlocked(reading);
 
   cabinetDetail.innerHTML = `
     <div class="cabinet-detail-header cabinet-detail-header--compact">
@@ -433,8 +484,8 @@ function renderReadingDetail(reading) {
     </div>
 
     ${renderChartSnapshot(reading)}
-    ${renderNatalChartWheel(reading)}
-    ${renderSnapshotOffer()}
+    ${renderNatalChartWheel(reading, snapshotUnlocked)}
+    ${renderSnapshotOffer(reading, snapshotUnlocked)}
 
     <div class="cabinet-reading-cards">
       ${cards
@@ -499,9 +550,14 @@ async function loadCabinet() {
       method: "GET",
       headers: {},
     });
+    const { unlocks } = await api("/api/product-unlocks", {
+      method: "GET",
+      headers: {},
+    });
 
     state.readings = readings;
     state.fullReports = fullReports;
+    state.snapshotUnlocks = unlocks;
     state.selectedId = readings[0] ? readings[0].id : null;
     cabinetIntro.textContent = `${user.email} - ${readings.length} saved reading${readings.length === 1 ? "" : "s"}.`;
     cabinetLogin.classList.add("is-hidden");
@@ -523,6 +579,32 @@ cabinetList.addEventListener("click", (event) => {
 });
 
 cabinetDetail.addEventListener("click", async (event) => {
+  const snapshotButton = event.target.closest("[data-unlock-snapshot]");
+  if (snapshotButton) {
+    try {
+      snapshotButton.disabled = true;
+      cabinetStatus.textContent = "Unlocking Extended Shadow Snapshot...";
+      const { unlock } = await api("/api/snapshot/unlock", {
+        method: "POST",
+        body: JSON.stringify({ readingId: snapshotButton.dataset.unlockSnapshot }),
+      });
+      state.snapshotUnlocks = [
+        unlock,
+        ...state.snapshotUnlocks.filter(
+          (item) => !(String(item.readingId) === String(unlock.readingId) && item.productKey === unlock.productKey),
+        ),
+      ];
+      state.selectedId = unlock.readingId || state.selectedId;
+      selectReading(state.selectedId);
+      cabinetStatus.textContent = "Extended Shadow Snapshot is unlocked for this reading.";
+    } catch (error) {
+      cabinetStatus.textContent = error.message;
+    } finally {
+      snapshotButton.disabled = false;
+    }
+    return;
+  }
+
   const button = event.target.closest("[data-create-full-report]");
   if (!button) return;
 
@@ -559,6 +641,8 @@ cabinetLogout.addEventListener("click", async () => {
   } finally {
     state.user = null;
     state.readings = [];
+    state.fullReports = [];
+    state.snapshotUnlocks = [];
     state.selectedId = null;
     renderLoginState();
   }

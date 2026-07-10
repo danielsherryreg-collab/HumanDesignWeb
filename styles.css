@@ -946,8 +946,56 @@ ul {
 .snapshot-offer__price .button {
   width: 100%;
   min-height: 42px;
-  cursor: not-allowed;
-  opacity: 0.78;
+}
+
+.snapshot-offer--unlocked {
+  border-color: rgba(185, 151, 91, 0.58);
+}
+
+.snapshot-offer__status {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  color: var(--gold);
+  text-align: right;
+}
+
+.snapshot-offer__status span {
+  border: 1px solid rgba(185, 151, 91, 0.5);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(185, 151, 91, 0.12);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.snapshot-offer__status small {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.snapshot-locked-panel {
+  grid-column: 1 / -1;
+  border: 1px solid rgba(185, 151, 91, 0.34);
+  border-radius: 8px;
+  padding: 18px;
+  background:
+    linear-gradient(135deg, rgba(180, 20, 26, 0.12), rgba(108, 75, 216, 0.08)),
+    rgba(5, 5, 5, 0.42);
+}
+
+.snapshot-locked-panel h4 {
+  margin: 0 0 10px;
+  color: var(--text);
+  font-family: Cinzel, Georgia, serif;
+  font-size: 1.2rem;
+}
+
+.snapshot-locked-panel p:not(.panel-kicker) {
+  max-width: 620px;
+  margin-bottom: 14px;
+  color: var(--muted);
+  line-height: 1.55;
 }
 
 .cabinet-reading-cards {

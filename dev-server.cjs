@@ -34,6 +34,8 @@ const resendApiKey = process.env.RESEND_API_KEY;
 const resendFrom = process.env.RESEND_FROM_EMAIL || "Shadow Chart <onboarding@resend.dev>";
 const reportEmailDisabled = process.env.DISABLE_REPORT_EMAIL === "true";
 const sessionCookieName = "shadow_session";
+const SNAPSHOT_PRODUCT_KEY = "extended-shadow-snapshot";
+const SNAPSHOT_PRICE_CENTS = 499;
 const usePostgres = Boolean(process.env.DATABASE_URL);
 
 fs.mkdirSync(dataDir, { recursive: true });
@@ -110,6 +112,21 @@ function createDatabase() {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             generated_at TIMESTAMPTZ
+          );
+
+          CREATE TABLE IF NOT EXISTS product_unlocks (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            reading_id BIGINT REFERENCES readings(id) ON DELETE CASCADE,
+            product_key TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'unlocked',
+            price_cents INTEGER NOT NULL DEFAULT 0,
+            currency TEXT NOT NULL DEFAULT 'USD',
+            payment_provider TEXT,
+            payment_reference TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            unlocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(user_id, reading_id, product_key)
           );
 
           CREATE TABLE IF NOT EXISTS pending_registrations (
@@ -234,6 +251,23 @@ function createDatabase() {
           generated_at TEXT,
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
           FOREIGN KEY (reading_id) REFERENCES readings(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS product_unlocks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          reading_id INTEGER,
+          product_key TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'unlocked',
+          price_cents INTEGER NOT NULL DEFAULT 0,
+          currency TEXT NOT NULL DEFAULT 'USD',
+          payment_provider TEXT,
+          payment_reference TEXT,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          unlocked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(user_id, reading_id, product_key),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (reading_id) REFERENCES readings(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS pending_registrations (
@@ -892,6 +926,64 @@ async function handleListFullReports(request, response) {
   sendJson(response, 200, { fullReports: reports });
 }
 
+function publicProductUnlock(row) {
+  return {
+    id: row.id,
+    readingId: row.reading_id,
+    productKey: row.product_key,
+    status: row.status,
+    priceCents: row.price_cents,
+    currency: row.currency,
+    paymentProvider: row.payment_provider,
+    unlockedAt: row.unlocked_at,
+  };
+}
+
+async function handleListProductUnlocks(request, response) {
+  const user = await requireUser(request, response);
+  if (!user) return;
+
+  const unlocks = (
+    await db.all("SELECT * FROM product_unlocks WHERE user_id = ? ORDER BY id DESC", [user.id])
+  ).map(publicProductUnlock);
+
+  sendJson(response, 200, { unlocks });
+}
+
+async function handleUnlockSnapshot(request, response) {
+  const user = await requireUser(request, response);
+  if (!user) return;
+
+  const { readingId } = await readJson(request);
+  const readingRow = readingId
+    ? await db.get("SELECT id FROM readings WHERE id = ? AND user_id = ?", [readingId, user.id])
+    : null;
+
+  if (!readingRow) {
+    sendJson(response, 404, { error: "Saved reading was not found." });
+    return;
+  }
+
+  const existing = await db.get(
+    "SELECT * FROM product_unlocks WHERE user_id = ? AND reading_id = ? AND product_key = ?",
+    [user.id, readingRow.id, SNAPSHOT_PRODUCT_KEY],
+  );
+
+  if (!existing) {
+    await db.run(
+      "INSERT INTO product_unlocks (user_id, reading_id, product_key, status, price_cents, currency, payment_provider, payment_reference) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [user.id, readingRow.id, SNAPSHOT_PRODUCT_KEY, "unlocked", SNAPSHOT_PRICE_CENTS, "USD", "manual_preview", "checkout-placeholder"],
+    );
+  }
+
+  const unlock = await db.get(
+    "SELECT * FROM product_unlocks WHERE user_id = ? AND reading_id = ? AND product_key = ?",
+    [user.id, readingRow.id, SNAPSHOT_PRODUCT_KEY],
+  );
+
+  sendJson(response, existing ? 200 : 201, { unlock: publicProductUnlock(unlock) });
+}
+
 async function handleDownloadFullReportPdf(request, response, reportId) {
   const user = await requireUser(request, response);
   if (!user) return;
@@ -1077,6 +1169,16 @@ async function handleRequest(request, response) {
   if (pathname === "/api/full-reports") {
     if (request.method === "GET") return handleListFullReports(request, response);
     if (request.method === "POST") return handleCreateFullReport(request, response);
+    return sendMethodNotAllowed(response);
+  }
+
+  if (pathname === "/api/product-unlocks") {
+    if (request.method === "GET") return handleListProductUnlocks(request, response);
+    return sendMethodNotAllowed(response);
+  }
+
+  if (pathname === "/api/snapshot/unlock") {
+    if (request.method === "POST") return handleUnlockSnapshot(request, response);
     return sendMethodNotAllowed(response);
   }
 
