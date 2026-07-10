@@ -77,11 +77,18 @@ async function openPaddleCheckout({ type, readingId }) {
   const paddle = await ensurePaddleReady();
   const priceId = type === "snapshot" ? paddle.priceIds?.snapshot : paddle.priceIds?.fullReport;
   if (!priceId) throw new Error(type === "snapshot" ? "PADDLE_SNAPSHOT_PRICE_ID is not configured." : "PADDLE_FULL_REPORT_PRICE_ID is not configured.");
+  if (!String(priceId).startsWith("pri_")) throw new Error(`Paddle price id looks wrong: ${priceId}. Use a Price ID that starts with pri_.`);
 
+  const environment = paddle.environment || "sandbox";
+  cabinetStatus.textContent = `Opening Paddle ${environment} checkout for ${type}. Price ID: ${priceId.slice(0, 8)}...`;
   state.pendingCheckout = { type, readingId, completed: false };
   window.Paddle.Checkout.open({
     items: [{ priceId, quantity: 1 }],
     customer: state.user?.email ? { email: state.user.email } : undefined,
+    settings: {
+      displayMode: "overlay",
+      theme: "dark",
+    },
     customData: {
       app: "shadow-chart",
       purchase_type: type,

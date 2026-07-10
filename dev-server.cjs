@@ -36,7 +36,7 @@ const reportEmailDisabled = process.env.DISABLE_REPORT_EMAIL === "true";
 const sessionCookieName = "shadow_session";
 const SNAPSHOT_PRODUCT_KEY = "extended-shadow-snapshot";
 const SNAPSHOT_PRICE_CENTS = 99;
-const paddleEnv = process.env.PADDLE_ENV || "sandbox";
+const paddleEnv = process.env.PADDLE_ENV || "";
 const paddleClientToken = process.env.PADDLE_CLIENT_TOKEN || "";
 const paddleSnapshotPriceId = process.env.PADDLE_SNAPSHOT_PRICE_ID || "";
 const paddleFullReportPriceId = process.env.PADDLE_FULL_REPORT_PRICE_ID || "";
@@ -772,14 +772,34 @@ async function handleMe(request, response) {
   sendJson(response, 200, { user: publicUser(await getCurrentUser(request)) });
 }
 
+function getRequestCountry(request) {
+  const headerValue =
+    request.headers["x-vercel-ip-country"] ||
+    request.headers["cf-ipcountry"] ||
+    request.headers["x-country-code"] ||
+    "";
+  const country = String(Array.isArray(headerValue) ? headerValue[0] : headerValue).trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(country) || country === "XX") return "";
+  return country;
+}
+
 async function handlePaddleConfig(request, response) {
-  const user = await requireUser(request, response);
-  if (!user) return;
+  const missing = [];
+  if (!paddleEnv) missing.push("PADDLE_ENV");
+  if (!paddleClientToken) missing.push("PADDLE_CLIENT_TOKEN");
+  if (!paddleSnapshotPriceId) missing.push("PADDLE_SNAPSHOT_PRICE_ID");
+  if (!paddleFullReportPriceId) missing.push("PADDLE_FULL_REPORT_PRICE_ID");
+
+  if (missing.length) {
+    sendJson(response, 500, { error: `Missing Paddle configuration: ${missing.join(", ")}.` });
+    return;
+  }
 
   sendJson(response, 200, {
     paddle: {
       environment: paddleEnv,
       clientToken: paddleClientToken,
+      countryCode: getRequestCountry(request) || undefined,
       priceIds: {
         snapshot: paddleSnapshotPriceId,
         fullReport: paddleFullReportPriceId,
@@ -1219,7 +1239,8 @@ async function handleRequest(request, response) {
     return;
   }
 
-  const rawPath = request.url === "/" ? "/index.html" : decodeURIComponent(request.url.split("?")[0]);
+  let rawPath = request.url === "/" ? "/index.html" : decodeURIComponent(request.url.split("?")[0]);
+  if (rawPath === "/welcome") rawPath = "/welcome.html";
   const safePath = rawPath.replace(/^[/\\]+/, "");
   const filePath = path.resolve(root, safePath);
 
