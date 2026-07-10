@@ -240,9 +240,12 @@ function renderNatalChartWheel(reading) {
   return `
     <section class="natal-chart-panel">
       <div>
-        <p class="panel-kicker">Calculated natal wheel</p>
-        <h3>Birth Chart Map</h3>
-        <p>This wheel is rendered from the saved planetary longitudes, houses, and aspects.</p>
+        <p class="panel-kicker">Extended Shadow Snapshot preview</p>
+        <h3>11-Point Chart Map</h3>
+        <p>
+          The numbered wheel marks 11 calculated chart factors. The Extended Shadow
+          Snapshot turns the strongest 9 into a focused psychological interpretation.
+        </p>
       </div>
       <svg class="natal-wheel" viewBox="0 0 200 200" role="img" aria-label="Calculated natal chart wheel">
         <circle cx="100" cy="100" r="92" class="natal-ring natal-ring--outer"></circle>
@@ -256,6 +259,26 @@ function renderNatalChartWheel(reading) {
       </svg>
       <ol class="natal-legend">${legend}</ol>
     </section>
+  `;
+}
+
+function renderSnapshotOffer() {
+  return `
+    <div class="snapshot-offer">
+      <div>
+        <p class="panel-kicker">Extended Shadow Snapshot</p>
+        <h3>Unlock the 9-point interpretation</h3>
+        <p>
+          A concise paid upgrade based on the numbered chart map: Sun, Moon,
+          Ascendant, relationship signals, action style, pressure points, and
+          emotional patterns.
+        </p>
+      </div>
+      <div class="snapshot-offer__price">
+        <strong>$4.99</strong>
+        <button class="button button--ghost" type="button" disabled>Snapshot Checkout Coming Soon</button>
+      </div>
+    </div>
   `;
 }
 
@@ -416,6 +439,7 @@ function renderReadingDetail(reading) {
 
     ${renderChartSnapshot(reading)}
     ${renderNatalChartWheel(reading)}
+    ${renderSnapshotOffer()}
 
     <div class="cabinet-reading-cards">
       ${cards

@@ -387,12 +387,12 @@ input:focus {
 .account-section {
   max-width: 1220px;
   margin: 0 auto;
-  padding: 86px clamp(18px, 4vw, 64px);
+  padding: 56px clamp(18px, 4vw, 64px);
 }
 
 .section-heading {
   max-width: 720px;
-  margin-bottom: 30px;
+  margin-bottom: 22px;
 }
 
 .reading-grid {
@@ -466,18 +466,22 @@ input:focus {
 .full-report {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
-  gap: 34px;
+  gap: 28px;
   align-items: center;
+}
+
+.report-copy h2 {
+  font-size: clamp(2.55rem, 5vw, 4.7rem);
 }
 
 .report-offers {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .report-panel,
 .checkout-card {
-  padding: 26px;
+  padding: 22px;
 }
 
 .report-panel--compact {
@@ -515,7 +519,7 @@ ul {
   margin: 0 0 22px;
   padding-left: 20px;
   color: var(--muted);
-  line-height: 1.9;
+  line-height: 1.65;
 }
 
 .checkout-shell {
@@ -533,7 +537,7 @@ ul {
 }
 
 .account-section {
-  padding-top: 34px;
+  padding-top: 42px;
 }
 
 .account-layout {
@@ -545,7 +549,7 @@ ul {
 .account-card {
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 24px;
+  padding: 22px;
   background:
     linear-gradient(145deg, rgba(185, 151, 91, 0.08), transparent 44%),
     rgba(16, 14, 15, 0.72);
@@ -560,12 +564,15 @@ ul {
 .saved-readings {
   display: grid;
   gap: 12px;
+  max-height: min(46vh, 420px);
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .saved-reading {
   border: 1px solid rgba(239, 232, 218, 0.12);
   border-radius: 8px;
-  padding: 16px;
+  padding: 14px;
   background: rgba(5, 5, 5, 0.35);
 }
 
@@ -595,7 +602,7 @@ ul {
 .cabinet-shell {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 28px clamp(18px, 4vw, 64px) 48px;
+  padding: 24px clamp(18px, 4vw, 64px) 34px;
 }
 
 .cabinet-nav {
@@ -604,18 +611,18 @@ ul {
 
 .cabinet-hero {
   max-width: 860px;
-  padding: 56px 0 28px;
+  padding: 34px 0 20px;
 }
 
 .cabinet-hero h1 {
-  font-size: clamp(3rem, 6vw, 5.4rem);
+  font-size: clamp(2.55rem, 5vw, 4.45rem);
 }
 
 .cabinet-hero p:not(.eyebrow) {
   max-width: 680px;
   color: var(--muted);
-  font-size: 1.08rem;
-  line-height: 1.7;
+  font-size: 1rem;
+  line-height: 1.55;
 }
 
 .cabinet-login {
@@ -644,8 +651,10 @@ ul {
   top: 18px;
   display: flex;
   min-height: 360px;
+  max-height: calc(100svh - 180px);
   flex-direction: column;
-  padding: 20px;
+  overflow: hidden;
+  padding: 18px;
 }
 
 .cabinet-panel-heading {
@@ -662,6 +671,8 @@ ul {
   align-content: start;
   gap: 10px;
   flex: 1;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .cabinet-list .button {
@@ -675,7 +686,7 @@ ul {
   width: 100%;
   border: 1px solid rgba(239, 232, 218, 0.12);
   border-radius: 8px;
-  padding: 15px;
+  padding: 12px;
   cursor: pointer;
   background: rgba(5, 5, 5, 0.34);
   color: var(--text);
@@ -700,7 +711,7 @@ ul {
 
 .cabinet-detail {
   min-height: 360px;
-  padding: 24px;
+  padding: 20px;
 }
 
 .cabinet-detail-header {
@@ -728,14 +739,14 @@ ul {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  margin: 18px 0;
+  margin: 14px 0;
 }
 
 .birth-summary div,
 .chart-snapshot div {
   border: 1px solid rgba(239, 232, 218, 0.12);
   border-radius: 8px;
-  padding: 14px;
+  padding: 11px 12px;
   background: rgba(5, 5, 5, 0.34);
 }
 
@@ -758,13 +769,13 @@ ul {
 
 .natal-chart-panel {
   display: grid;
-  grid-template-columns: minmax(220px, 0.85fr) minmax(280px, 1fr);
-  gap: 24px;
+  grid-template-columns: minmax(180px, 0.72fr) minmax(260px, 0.9fr);
+  gap: 16px;
   align-items: center;
   border: 1px solid rgba(185, 151, 91, 0.22);
   border-radius: 8px;
-  margin-top: 18px;
-  padding: 22px;
+  margin-top: 14px;
+  padding: 16px;
   background:
     radial-gradient(circle at 70% 45%, rgba(108, 75, 216, 0.18), transparent 22rem),
     radial-gradient(circle at 30% 35%, rgba(185, 151, 91, 0.1), transparent 18rem),
@@ -772,16 +783,17 @@ ul {
 }
 
 .natal-chart-panel h3 {
-  font-size: 1.7rem;
+  font-size: 1.35rem;
 }
 
 .natal-chart-panel p:not(.panel-kicker) {
   color: var(--muted);
-  line-height: 1.7;
+  font-size: 0.92rem;
+  line-height: 1.55;
 }
 
 .natal-wheel {
-  width: min(100%, 430px);
+  width: min(100%, 320px);
   aspect-ratio: 1;
   justify-self: center;
   filter: drop-shadow(0 0 26px rgba(108, 75, 216, 0.18));
@@ -853,9 +865,11 @@ ul {
 .natal-legend {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 14px;
-  margin: 8px 0 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  max-height: 188px;
+  margin: 4px 0 0;
+  overflow: auto;
   padding: 0;
   list-style: none;
 }
@@ -863,7 +877,7 @@ ul {
 .natal-legend li {
   border: 1px solid rgba(239, 232, 218, 0.1);
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   background: rgba(5, 5, 5, 0.28);
 }
 
@@ -875,25 +889,72 @@ ul {
 .natal-legend strong {
   color: var(--text);
   font-family: Cinzel, Georgia, serif;
-  font-size: 0.86rem;
+  font-size: 0.78rem;
 }
 
 .natal-legend span {
   margin-top: 4px;
   color: var(--muted);
-  font-size: 0.82rem;
-  line-height: 1.45;
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.snapshot-offer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(170px, 220px);
+  gap: 16px;
+  align-items: center;
+  border: 1px solid rgba(185, 151, 91, 0.38);
+  border-radius: 8px;
+  margin-top: 14px;
+  padding: 18px;
+  background:
+    linear-gradient(135deg, rgba(185, 151, 91, 0.12), rgba(108, 75, 216, 0.08)),
+    rgba(5, 5, 5, 0.38);
+}
+
+.snapshot-offer h3 {
+  font-size: 1.35rem;
+}
+
+.snapshot-offer p:not(.panel-kicker) {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.snapshot-offer__price {
+  display: grid;
+  gap: 10px;
+}
+
+.snapshot-offer__price strong {
+  color: var(--gold);
+  font-family: Cinzel, Georgia, serif;
+  font-size: 2rem;
+  text-align: right;
+}
+
+.snapshot-offer__price .button {
+  width: 100%;
+  min-height: 42px;
+  cursor: not-allowed;
+  opacity: 0.78;
 }
 
 .cabinet-reading-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
-  margin-top: 18px;
+  margin-top: 14px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .cabinet-reading-cards .reading-card {
-  min-height: 220px;
+  min-height: 190px;
+  padding: 18px;
 }
 
 .full-report-offer {
@@ -903,15 +964,15 @@ ul {
   align-items: center;
   border: 1px solid rgba(185, 151, 91, 0.34);
   border-radius: 8px;
-  margin-top: 18px;
-  padding: 22px;
+  margin-top: 14px;
+  padding: 18px;
   background:
     linear-gradient(135deg, rgba(185, 151, 91, 0.12), rgba(180, 20, 26, 0.1)),
     rgba(5, 5, 5, 0.38);
 }
 
 .full-report-offer h3 {
-  font-size: 1.55rem;
+  font-size: 1.35rem;
 }
 
 .full-report-offer p:not(.panel-kicker) {
@@ -1147,6 +1208,7 @@ ul {
   .natal-chart-panel,
   .cabinet-reading-cards,
   .full-report-offer,
+  .snapshot-offer,
   .structured-ui-cards,
   .structured-sections,
   .rave-chart-panel {

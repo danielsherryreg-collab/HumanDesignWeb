@@ -167,11 +167,14 @@ function renderAccount() {
         year: "numeric",
       });
       const title = reading.firstName ? `${reading.firstName}'s Mini Reading` : "Mini Reading";
+      const preview = String(reading.cards?.[0]?.text || "Open this reading in your personal cabinet.")
+        .replace(/\s+/g, " ")
+        .slice(0, 150);
       return `
         <article class="saved-reading">
           <h4>${title}</h4>
           <p>${date} - ${reading.birthDate || "Birth date"} - ${reading.birthPlace || "Birth place"}</p>
-          <p>${reading.cards[0].text}</p>
+          <p>${preview}${preview.length >= 150 ? "..." : ""}</p>
           <a href="account.html">Open reading</a>
         </article>
       `;
