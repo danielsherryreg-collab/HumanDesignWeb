@@ -1449,12 +1449,38 @@ ul {
   font-size: 0.92rem;
 }
 
-.site-footer a {
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.footer-policy-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(216, 180, 106, 0.38);
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: rgba(216, 180, 106, 0.08);
+  color: var(--text);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.footer-policy-button:hover {
+  border-color: rgba(216, 180, 106, 0.78);
+  color: var(--gold);
+}
+
+.footer-support-link {
   color: var(--muted);
   text-decoration: none;
 }
 
-.site-footer a:hover {
+.footer-support-link:hover {
   color: var(--gold);
 }
 
