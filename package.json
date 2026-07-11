@@ -10,7 +10,7 @@
         "paddle:create-catalog": "node scripts/create-paddle-catalog.cjs"
     },
     "engines": {
-        "node": ">=24"
+        "node": "22.x"
     },
     "dependencies": {
         "@paddle/paddle-node-sdk": "^3.8.0",
