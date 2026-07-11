@@ -109,7 +109,10 @@ function ensurePaddleReady() {
 
   if (!state.paddleReady) {
     if (paddle.environment === "sandbox") window.Paddle.Environment.set("sandbox");
-    window.Paddle.Initialize({ token: paddle.clientToken });
+    window.Paddle.Initialize({
+      token: paddle.clientToken,
+      ...(paddle.customerId ? { pwCustomer: { id: paddle.customerId } } : {}),
+    });
     state.paddleReady = true;
   }
 }

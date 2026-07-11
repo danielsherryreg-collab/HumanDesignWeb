@@ -1,8 +1,15 @@
 const apiKey = process.env.PADDLE_API_KEY;
-const apiBase = process.env.PADDLE_API_BASE || "https://sandbox-api.paddle.com";
+const paddleEnv = process.env.PADDLE_ENV;
+
+if (!paddleEnv || !["sandbox", "production"].includes(paddleEnv)) {
+  console.error("Missing PADDLE_ENV. Set it to sandbox or production before creating catalog items.");
+  process.exit(1);
+}
+
+const apiBase = process.env.PADDLE_API_BASE || (paddleEnv === "production" ? "https://api.paddle.com" : "https://sandbox-api.paddle.com");
 
 if (!apiKey) {
-  console.error("Missing PADDLE_API_KEY. Set it first: $env:PADDLE_API_KEY=\"your_sandbox_key\"");
+  console.error("Missing PADDLE_API_KEY. Set the API key for the selected PADDLE_ENV first.");
   process.exit(1);
 }
 
@@ -85,7 +92,7 @@ async function createOneTimePrice(product, paddleProduct) {
 }
 
 async function main() {
-  console.log(`Creating Paddle sandbox one-time catalog using ${apiBase}`);
+  console.log(`Creating Paddle ${paddleEnv} one-time catalog using ${apiBase}`);
   console.log("Country overrides:");
   console.log("- 9-point interpretation: USD 99, GB GBP 79, IE EUR 89, AU AUD 149");
   console.log("- Complete birth chart report: USD 1999, GB GBP 1499, IE EUR 1799, AU AUD 2799");

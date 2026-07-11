@@ -44,6 +44,8 @@ const paddleClientToken = process.env.PADDLE_CLIENT_TOKEN || "";
 const paddleApiKey = process.env.PADDLE_API_KEY || "";
 const paddleSnapshotPriceId = process.env.PADDLE_SNAPSHOT_PRICE_ID || "";
 const paddleFullReportPriceId = process.env.PADDLE_FULL_REPORT_PRICE_ID || "";
+const paddleIpAllowlistEnabled = process.env.PADDLE_IP_ALLOWLIST_DISABLED !== "true";
+let paddleIpsCache = { expiresAt: 0, cidrs: [] };
 const usePostgres = Boolean(process.env.DATABASE_URL);
 
 fs.mkdirSync(dataDir, { recursive: true });
@@ -477,6 +479,37 @@ function createPaddleClient({ requireApiKey = false } = {}) {
     environment: getPaddleSdkEnvironment(),
   });
 }
+function getPaddleConfigErrors() {
+  const errors = [];
+
+  if (!paddleEnv) errors.push("PADDLE_ENV is missing.");
+  if (paddleEnv && !["sandbox", "production"].includes(paddleEnv)) errors.push("PADDLE_ENV must be sandbox or production.");
+  if (!paddleClientToken) errors.push("PADDLE_CLIENT_TOKEN is missing.");
+  if (!paddleSnapshotPriceId) errors.push("PADDLE_SNAPSHOT_PRICE_ID is missing.");
+  if (!paddleFullReportPriceId) errors.push("PADDLE_FULL_REPORT_PRICE_ID is missing.");
+
+  if (paddleClientToken && paddleEnv === "production" && !paddleClientToken.startsWith("live_")) {
+    errors.push("PADDLE_CLIENT_TOKEN must start with live_ when PADDLE_ENV=production.");
+  }
+  if (paddleClientToken && paddleEnv === "sandbox" && !paddleClientToken.startsWith("test_")) {
+    errors.push("PADDLE_CLIENT_TOKEN must start with test_ when PADDLE_ENV=sandbox.");
+  }
+  if (paddleApiKey && paddleEnv === "production" && paddleApiKey.startsWith("pdl_sdbx")) {
+    errors.push("PADDLE_API_KEY looks like a sandbox key, but PADDLE_ENV=production.");
+  }
+  if (paddleApiKey && paddleEnv === "sandbox" && paddleApiKey.startsWith("pdl_live")) {
+    errors.push("PADDLE_API_KEY looks like a live key, but PADDLE_ENV=sandbox.");
+  }
+  if (paddleSnapshotPriceId && !paddleSnapshotPriceId.startsWith("pri_")) errors.push("PADDLE_SNAPSHOT_PRICE_ID must be a Paddle Price ID that starts with pri_.");
+  if (paddleFullReportPriceId && !paddleFullReportPriceId.startsWith("pri_")) errors.push("PADDLE_FULL_REPORT_PRICE_ID must be a Paddle Price ID that starts with pri_.");
+
+  if (paddleEnv === "production") {
+    if (!paddleApiKey) errors.push("PADDLE_API_KEY is required in production for customer portal and server-side Paddle calls.");
+    if (!paddleWebhookSecret) errors.push("PADDLE_WEBHOOK_SECRET is required in production for verified webhook fulfillment.");
+  }
+
+  return errors;
+}
 
 async function unmarshalPaddleWebhook(rawBody, signatureHeader) {
   if (!paddleWebhookSecret) throw new Error("PADDLE_WEBHOOK_SECRET is not configured.");
@@ -887,24 +920,74 @@ function getRequestCountry(request) {
   if (!/^[A-Z]{2}$/.test(country) || country === "XX") return "";
   return country;
 }
+function getRequestIp(request) {
+  const forwarded = request.headers["x-forwarded-for"];
+  const firstForwarded = String(Array.isArray(forwarded) ? forwarded[0] : forwarded || "").split(",")[0].trim();
+  const rawIp = firstForwarded || request.socket?.remoteAddress || "";
+  return rawIp.replace(/^::ffff:/, "");
+}
+
+function ipv4ToNumber(ip) {
+  const parts = String(ip).split(".").map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return null;
+  return parts.reduce((result, part) => (result << 8) + part, 0) >>> 0;
+}
+
+function ipv4MatchesCidr(ip, cidr) {
+  const [rangeIp, bitsText = "32"] = String(cidr).split("/");
+  const bits = Number(bitsText);
+  const ipNumber = ipv4ToNumber(ip);
+  const rangeNumber = ipv4ToNumber(rangeIp);
+  if (ipNumber === null || rangeNumber === null || !Number.isInteger(bits) || bits < 0 || bits > 32) return false;
+  const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+  return (ipNumber & mask) === (rangeNumber & mask);
+}
+
+async function getPaddleLiveIpCidrs() {
+  if (paddleIpsCache.expiresAt > Date.now() && paddleIpsCache.cidrs.length) return paddleIpsCache.cidrs;
+
+  const response = await fetch("https://api.paddle.com/ips", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`Could not fetch Paddle IP allowlist: ${response.status}`);
+  const payload = await response.json();
+  const cidrs = Array.isArray(payload?.data?.ipv4_cidrs) ? payload.data.ipv4_cidrs : [];
+  if (!cidrs.length) throw new Error("Paddle IP allowlist response did not include data.ipv4_cidrs.");
+
+  paddleIpsCache = { expiresAt: Date.now() + 1000 * 60 * 60, cidrs };
+  return cidrs;
+}
+
+async function verifyPaddleWebhookSource(request) {
+  if (paddleEnv !== "production" || !paddleIpAllowlistEnabled) return { allowed: true };
+  const requestIp = getRequestIp(request);
+  const cidrs = await getPaddleLiveIpCidrs();
+  const allowed = cidrs.some((cidr) => ipv4MatchesCidr(requestIp, cidr));
+  return { allowed, requestIp };
+}
 
 async function handlePaddleConfig(request, response) {
-  const missing = [];
-  if (!paddleEnv) missing.push("PADDLE_ENV");
-  if (!paddleClientToken) missing.push("PADDLE_CLIENT_TOKEN");
-  if (!paddleSnapshotPriceId) missing.push("PADDLE_SNAPSHOT_PRICE_ID");
-  if (!paddleFullReportPriceId) missing.push("PADDLE_FULL_REPORT_PRICE_ID");
+  const configErrors = getPaddleConfigErrors();
 
-  if (missing.length) {
-    sendJson(response, 500, { error: `Missing Paddle configuration: ${missing.join(", ")}.` });
+  if (configErrors.length) {
+    sendJson(response, 500, { error: `Invalid Paddle configuration: ${configErrors.join(" ")}` });
     return;
   }
+
+  const user = await getCurrentUser(request);
+  const paddleCustomer = user
+    ? await db.get("SELECT customer_id FROM paddle_customers WHERE user_id = ? OR email = ? ORDER BY updated_at DESC LIMIT 1", [
+        user.id,
+        String(user.email).trim().toLowerCase(),
+      ])
+    : null;
 
   sendJson(response, 200, {
     paddle: {
       environment: paddleEnv,
       clientToken: paddleClientToken,
       countryCode: getRequestCountry(request) || undefined,
+      customerId: paddleCustomer?.customer_id || undefined,
       priceIds: {
         snapshot: paddleSnapshotPriceId,
         fullReport: paddleFullReportPriceId,
@@ -1342,6 +1425,18 @@ async function routePaddleEvent(event) {
 }
 
 async function handlePaddleWebhook(request, response) {
+  let sourceCheck;
+  try {
+    sourceCheck = await verifyPaddleWebhookSource(request);
+  } catch (error) {
+    sendJson(response, 503, { error: error.message || "Could not verify Paddle webhook source." });
+    return;
+  }
+  if (!sourceCheck.allowed) {
+    sendJson(response, 403, { error: "Webhook source IP is not in Paddle's live allowlist." });
+    return;
+  }
+
   const rawBody = await readRawBody(request);
   const signatureHeader = request.headers["paddle-signature"] || request.headers["Paddle-Signature"];
 

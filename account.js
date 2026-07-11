@@ -67,6 +67,7 @@ async function ensurePaddleReady() {
     window.Paddle.Initialize({
       token: paddle.clientToken,
       eventCallback: handlePaddleEvent,
+      ...(paddle.customerId ? { pwCustomer: { id: paddle.customerId } } : {}),
     });
     state.paddleReady = true;
   }
